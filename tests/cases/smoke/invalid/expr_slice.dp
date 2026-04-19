@@ -1,0 +1,2 @@
+var items: int[] = [1, 2, 3]
+var part = items[1:2]

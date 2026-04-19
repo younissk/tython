@@ -1,0 +1,7 @@
+var ok = true
+var value = if ok: 1 else 0
+var bump = (if ok: 1 else 0) + 3
+print(if ok: "yes" else "no")
+func choose(flag: bool) -> int {
+    return if flag: 10 else 20
+}

@@ -1,0 +1,96 @@
+Module(
+  body=[
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='i'),
+          Constant(value=None),
+          Constant(value=0),
+          Constant(value=True),
+          Constant(value=False)])),
+    If(
+      test=Compare(
+        left=Name(id='i', ctx=Load()),
+        ops=[
+          Eq()],
+        comparators=[
+          Constant(value=0)]),
+      body=[
+        Pass()],
+      orelse=[
+        If(
+          test=Compare(
+            left=Name(id='i', ctx=Load()),
+            ops=[
+              Gt()],
+            comparators=[
+              Constant(value=0)]),
+          body=[
+            Assign(
+              targets=[
+                Name(id='i', ctx=Store())],
+              value=BinOp(
+                left=Name(id='i', ctx=Load()),
+                op=Add(),
+                right=Constant(value=1)))],
+          orelse=[
+            Assign(
+              targets=[
+                Name(id='i', ctx=Store())],
+              value=BinOp(
+                left=Name(id='i', ctx=Load()),
+                op=Sub(),
+                right=Constant(value=1)))])]),
+    While(
+      test=Compare(
+        left=Name(id='i', ctx=Load()),
+        ops=[
+          Lt()],
+        comparators=[
+          Constant(value=3)]),
+      body=[
+        Assign(
+          targets=[
+            Name(id='i', ctx=Store())],
+          value=BinOp(
+            left=Name(id='i', ctx=Load()),
+            op=Add(),
+            right=Constant(value=1))),
+        If(
+          test=Compare(
+            left=Name(id='i', ctx=Load()),
+            ops=[
+              Eq()],
+            comparators=[
+              Constant(value=2)]),
+          body=[
+            Continue()]),
+        If(
+          test=Compare(
+            left=Name(id='i', ctx=Load()),
+            ops=[
+              Eq()],
+            comparators=[
+              Constant(value=3)]),
+          body=[
+            Break()])]),
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='label'),
+          Constant(value=None),
+          IfExp(
+            test=Compare(
+              left=Name(id='i', ctx=Load()),
+              ops=[
+                Gt()],
+              comparators=[
+                Constant(value=0)]),
+            body=Constant(value='pos'),
+            orelse=Constant(value='zero')),
+          Constant(value=True),
+          Constant(value=False)]))])

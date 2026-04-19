@@ -1,0 +1,13 @@
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Test/runtime caches
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+
+# OS/editor noise
+.DS_Store

@@ -1,0 +1,3 @@
+var formatter: (name: str) -> str
+func greet(name: str) -> str = "Hi " + name
+formatter = greet

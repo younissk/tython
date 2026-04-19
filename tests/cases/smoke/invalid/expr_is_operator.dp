@@ -1,0 +1,3 @@
+var a = none
+var b = none
+var same = a is b

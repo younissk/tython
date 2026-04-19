@@ -1,0 +1,4 @@
+var maybe_value: none = none
+if maybe_value == none {
+    maybe_value = none
+}

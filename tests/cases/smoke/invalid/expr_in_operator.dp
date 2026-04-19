@@ -1,0 +1,2 @@
+var items: int[] = [1, 2]
+var ok = 1 in items

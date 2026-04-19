@@ -1,0 +1,4 @@
+func log(msg: str) -> none {
+    print(msg)
+}
+log("hello")

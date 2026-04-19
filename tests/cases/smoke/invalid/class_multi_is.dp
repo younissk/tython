@@ -1,0 +1,12 @@
+record A {
+    x: int
+}
+
+record B {
+    y: int
+}
+
+class C is A, B {
+    init var x: int
+    init var y: int
+}

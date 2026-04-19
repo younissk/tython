@@ -1,0 +1,61 @@
+Module(
+  body=[
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='nums'),
+          Constant(value='int[]'),
+          List(
+            elts=[
+              Constant(value=1),
+              Constant(value=2),
+              Constant(value=3)],
+            ctx=Load()),
+          Constant(value=True),
+          Constant(value=False)])),
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='idx'),
+          Constant(value=None),
+          Constant(value=1),
+          Constant(value=True),
+          Constant(value=False)])),
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='value'),
+          Constant(value=None),
+          Subscript(
+            value=Name(id='nums', ctx=Load()),
+            slice=Name(id='idx', ctx=Load()),
+            ctx=Load()),
+          Constant(value=True),
+          Constant(value=False)])),
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='ok'),
+          Constant(value=None),
+          BoolOp(
+            op=And(),
+            values=[
+              Compare(
+                left=Name(id='value', ctx=Load()),
+                ops=[
+                  Gt()],
+                comparators=[
+                  Constant(value=0)]),
+              UnaryOp(
+                op=Not(),
+                operand=Constant(value=False))]),
+          Constant(value=True),
+          Constant(value=False)]))])

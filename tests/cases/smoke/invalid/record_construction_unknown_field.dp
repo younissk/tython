@@ -1,0 +1,8 @@
+record Animal {
+    name: str
+}
+
+const A = Animal {
+    name: "n"
+    age: 1
+}

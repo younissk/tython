@@ -1,0 +1,3 @@
+func add(a: int, b: int) -> int = a + b
+func greet(name: str, title: str = "Mr") -> str = title + " " + name
+var msg = greet(name: "Youniss")

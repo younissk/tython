@@ -1,0 +1,5 @@
+const MAX_USERS: int = 100
+var count = 0
+if true {
+    count = count + 1
+}

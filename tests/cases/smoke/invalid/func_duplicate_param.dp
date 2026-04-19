@@ -1,0 +1,1 @@
+func add(a: int, a: int) -> int = a + a

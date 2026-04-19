@@ -1,0 +1,2 @@
+const MAX_USERS: int
+MAX_USERS = 100

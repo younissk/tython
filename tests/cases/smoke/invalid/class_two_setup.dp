@@ -1,0 +1,9 @@
+class Fish {
+    setup {
+        print("a")
+    }
+
+    setup {
+        print("b")
+    }
+}

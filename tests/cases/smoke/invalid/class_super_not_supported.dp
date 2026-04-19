@@ -1,0 +1,5 @@
+class Fish {
+    pub func run() -> none {
+        super()
+    }
+}

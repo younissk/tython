@@ -1,0 +1,3 @@
+record Animal {
+    init var name: str
+}

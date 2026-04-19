@@ -1,0 +1,9 @@
+record Math {
+    add: (a: int, b: int) -> int
+}
+
+func add_impl(a: int, b: int) -> int = a + b
+
+const MATH = Math {
+    add: add_impl
+}

@@ -1,0 +1,21 @@
+record Animal {
+    name: str
+}
+
+class Fish is Animal {
+    init var name: str
+    var age: int = 1
+
+    setup {
+        this.age = this.age + 1
+    }
+
+    pub func speak() -> none {
+        print(this.name)
+    }
+}
+
+const FISH = Fish(name: "Nemo")
+const ANIMAL = Animal {
+    name: "Nemo"
+}

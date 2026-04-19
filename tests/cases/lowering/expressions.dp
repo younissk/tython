@@ -1,0 +1,5 @@
+var nums: int[] = [1, 2, 3]
+var idx = 1
+var value = nums[idx]
+var both = "a" + "b"
+var ok = (value > 0) and not false

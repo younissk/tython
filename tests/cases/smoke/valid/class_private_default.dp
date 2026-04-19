@@ -1,0 +1,15 @@
+class Counter {
+    var count: int = 0
+
+    func increment_internal() -> none {
+        this.count = this.count + 1
+    }
+
+    pub func increment() -> none {
+        this.increment_internal()
+    }
+
+    pub func value() -> int = this.count
+}
+
+const C = Counter()

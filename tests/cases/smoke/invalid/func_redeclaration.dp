@@ -1,0 +1,2 @@
+func add(a: int, b: int) -> int = a + b
+func add(x: int, y: int) -> int = x + y

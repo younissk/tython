@@ -1,0 +1,5 @@
+enum Habitat {
+    ocean
+    jungle
+}
+var names: str[] = ["ocean", "jungle"]

@@ -1,0 +1,4 @@
+func outer(x: int) -> int {
+    func inner(y: int) -> int = x + y
+    return inner(5)
+}

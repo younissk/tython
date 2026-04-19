@@ -1,0 +1,9 @@
+class Fish {
+    init var name: str
+    setup {
+        print(this.name)
+    }
+}
+
+const F = Fish(name: "nemo")
+F.setup()

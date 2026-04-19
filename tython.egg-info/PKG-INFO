@@ -1,0 +1,106 @@
+Metadata-Version: 2.4
+Name: tython
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.14
+Description-Content-Type: text/markdown
+Requires-Dist: pegen>=0.3.0
+Requires-Dist: pytest>=9.0.3
+Requires-Dist: ruff>=0.15.10
+
+# Parser Playground
+
+This repository focuses on grammar experimentation and parser validation.
+
+## Layout
+
+- `grammar/`: grammar sources (`python.gram`, `Tokens`)
+- `parser/`: parser package
+- `parser/core.py`: parser-facing API used by tests (`parse`, `parse_custom`, `lower`)
+- `parser/lowering.py`: lowering transformations from custom IR to Python AST
+- `parser/cli.py`: command-line flow for parsing/lowering/executing
+- `tests/cases/`: file fixtures grouped by test layer
+- `tests/test_*.py`: automated parser test suite
+- `AGENTS.md`: contributor and automation guidance
+  - includes a `User Collaboration Preferences` section for future chat behavior
+
+
+## Language Docs
+
+Tython documentation is organized as a language guide and reference:
+
+- `docs/index.md`
+- `docs/language/quickstart.md`
+- `docs/language/values-and-bindings.md`
+- `docs/language/expressions.md`
+- `docs/language/scope.md`
+- `docs/language/functions.md`
+- `docs/language/functions-and-blocks.md`
+- `docs/language/enums.md`
+- `docs/language/records-and-classes.md`
+- `docs/language/errors.md`
+- `docs/reference/parser-pipeline.md`
+
+## How testing works
+
+1. Smoke (`tests/test_smoke.py`)
+   - Valid fixtures must parse.
+   - Invalid fixtures must raise `SyntaxError`.
+
+2. Differential (`tests/test_differential.py`)
+   - `compat_python/`: compare parser output to CPython `ast.parse`.
+   - `custom_syntax/`: compare lowered output to expected Python AST + compile checks.
+
+3. Golden (`tests/test_golden.py`)
+   - Snapshot custom parse AST shape for representative fixtures.
+
+4. Lowering (`tests/test_lowering.py`)
+   - Verify custom IR lowers to expected Python AST.
+
+5. Runtime path (`tests/test_main_txt_runtime.py`)
+   - Verify `.txt` input goes through custom parse + lowering + execution.
+
+## Run tests properly
+
+Run everything:
+
+```bash
+uv run python -m pytest
+```
+
+Run one layer:
+
+```bash
+uv run python -m pytest -m smoke
+uv run python -m pytest -m golden
+uv run python -m pytest -m lowering
+uv run python -m pytest -m differential
+```
+
+Run one file:
+
+```bash
+uv run python -m pytest tests/test_differential.py
+```
+
+## REPL
+
+Start an interactive Tython REPL:
+
+```bash
+make repl
+```
+
+## Transpile .txt to .py
+
+Generate Python from custom `.txt` syntax:
+
+```bash
+uv run transpile path/to/file.txt path/to/file.py
+```
+
+Alternative (existing CLI path):
+
+```bash
+uv run python main.py path/to/file.txt --transpile -o path/to/output.py
+```

@@ -1,0 +1,5 @@
+const BASE = 10
+func add(x: int, y: int) -> int {
+    return x + y
+}
+var result = add(BASE, 5)

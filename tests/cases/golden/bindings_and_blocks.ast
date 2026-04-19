@@ -1,0 +1,32 @@
+Module(
+  body=[
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='const'),
+          Constant(value='MAX_USERS'),
+          Constant(value='int'),
+          Constant(value=100),
+          Constant(value=True),
+          Constant(value=False)])),
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='count'),
+          Constant(value=None),
+          Constant(value=0),
+          Constant(value=True),
+          Constant(value=False)])),
+    If(
+      test=Constant(value=True),
+      body=[
+        Assign(
+          targets=[
+            Name(id='count', ctx=Store())],
+          value=BinOp(
+            left=Name(id='count', ctx=Load()),
+            op=Add(),
+            right=Constant(value=1)))])])

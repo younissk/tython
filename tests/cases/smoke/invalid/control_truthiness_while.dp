@@ -1,0 +1,4 @@
+var count = 1
+while count {
+    count = count - 1
+}

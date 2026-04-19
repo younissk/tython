@@ -1,0 +1,12 @@
+record Animal {
+    name: str
+    speak: () -> none
+}
+
+func talk() -> none {
+    return none
+}
+
+const A = Animal {
+    name: "n"
+}

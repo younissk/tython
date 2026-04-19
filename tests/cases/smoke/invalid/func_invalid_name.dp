@@ -1,0 +1,1 @@
+func AddNumbers(a: int, b: int) -> int = a + b

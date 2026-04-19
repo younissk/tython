@@ -1,0 +1,7 @@
+var nums: int[] = [1, 2, 3]
+var idx = 1
+var value = nums[idx]
+var ok = (value > 0) and not false
+if ok {
+    value = value + 1
+}

@@ -1,0 +1,6 @@
+var items: int[] = [1, 2, 3]
+var idx = 1
+var picked = items[idx]
+if picked == none {
+    print(picked)
+}

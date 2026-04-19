@@ -1,0 +1,4 @@
+var count = 0
+if true {
+    var count = 1
+}

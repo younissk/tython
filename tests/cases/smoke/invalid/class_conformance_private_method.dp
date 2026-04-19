@@ -1,0 +1,9 @@
+record Animal {
+    speak: () -> none
+}
+
+class Fish is Animal {
+    func speak() -> none {
+        print("x")
+    }
+}

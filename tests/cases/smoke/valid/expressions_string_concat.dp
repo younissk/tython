@@ -1,0 +1,3 @@
+var first = "a"
+var second = "b"
+var both = first + second

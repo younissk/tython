@@ -1,0 +1,2 @@
+func greet(name: str, title: str = "Mr") -> str = title + " " + name
+var bad = greet(username: "Youniss", title: "Dr")

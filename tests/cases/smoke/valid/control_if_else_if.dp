@@ -1,0 +1,8 @@
+var score = 75
+if score > 90 {
+    print("A")
+} else if score > 60 {
+    print("B")
+} else {
+    pass
+}

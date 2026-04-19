@@ -1,0 +1,2 @@
+func square(x: int) -> int = x * x
+var y = square(3)

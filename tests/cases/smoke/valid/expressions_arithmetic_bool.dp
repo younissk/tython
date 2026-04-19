@@ -1,0 +1,10 @@
+var x = 1
+var y = 2.0
+var sum = x + y
+var div = y / x
+var floored = y // x
+var modded = x % 1
+var ok = (x < 10) and not false
+if ok {
+    x = x + 1
+}

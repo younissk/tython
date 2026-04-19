@@ -1,0 +1,4 @@
+enum Habitat {
+    ocean
+    jungle
+}

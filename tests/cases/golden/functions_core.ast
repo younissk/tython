@@ -1,0 +1,56 @@
+Module(
+  body=[
+    FunctionDef(
+      name='add',
+      args=arguments(
+        args=[
+          arg(
+            arg='a',
+            annotation=Name(id='int', ctx=Load())),
+          arg(
+            arg='b',
+            annotation=Name(id='int', ctx=Load()))]),
+      body=[
+        Return(
+          value=BinOp(
+            left=Name(id='a', ctx=Load()),
+            op=Add(),
+            right=Name(id='b', ctx=Load())))],
+      returns=Name(id='int', ctx=Load())),
+    FunctionDef(
+      name='greet',
+      args=arguments(
+        args=[
+          arg(
+            arg='name',
+            annotation=Name(id='str', ctx=Load())),
+          arg(
+            arg='title',
+            annotation=Name(id='str', ctx=Load()))],
+        defaults=[
+          Constant(value='Mr')]),
+      body=[
+        Return(
+          value=BinOp(
+            left=BinOp(
+              left=Name(id='title', ctx=Load()),
+              op=Add(),
+              right=Constant(value=' ')),
+            op=Add(),
+            right=Name(id='name', ctx=Load())))],
+      returns=Name(id='str', ctx=Load())),
+    Expr(
+      value=Call(
+        func=Name(id='__custom_binding_decl__', ctx=Load()),
+        args=[
+          Constant(value='var'),
+          Constant(value='msg'),
+          Constant(value=None),
+          Call(
+            func=Name(id='greet', ctx=Load()),
+            keywords=[
+              keyword(
+                arg='name',
+                value=Constant(value='Youniss'))]),
+          Constant(value=True),
+          Constant(value=False)]))])

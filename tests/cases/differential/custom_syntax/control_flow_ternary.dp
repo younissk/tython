@@ -1,0 +1,12 @@
+var i = 0
+while i < 4 {
+    i = i + 1
+    if i == 2 {
+        continue
+    }
+    if i == 3 {
+        break
+    }
+}
+var status = if i > 0: "ok" else "none"
+print(status)

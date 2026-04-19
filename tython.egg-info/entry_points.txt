@@ -1,0 +1,2 @@
+[console_scripts]
+transpile = parser.transpile:main

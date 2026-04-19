@@ -8,6 +8,7 @@ This page describes how custom Tython syntax is processed internally.
 2. Rewrite custom syntax:
    - brace blocks (`{}`)
    - `func` declarations
+   - checked error syntax (`throws`, `catch`, `try expr`)
    - `record` declarations and literals
    - `class` declarations (`init`, `setup`, `pub`, `is`)
    - enums

@@ -46,8 +46,14 @@ Run tests:
 uv run python -m pytest
 ```
 
-Transpile `.txt` to Python:
+Run a `.txt` or `.ty` file:
 
 ```bash
-uv run transpile input.txt output.py
+uv run tython run input.ty
+```
+
+Transpile `.txt` or `.ty` to Python:
+
+```bash
+uv run tython transpile input.txt --output output.py
 ```

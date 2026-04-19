@@ -1,0 +1,15 @@
+record FileError {
+    path: str
+    reason: str
+}
+
+func read_file(path: str) -> str throws FileError {
+    raise FileError {
+        path: path
+        reason: "boom"
+    }
+}
+
+func run() -> str {
+    return try read_file("notes.txt")
+}

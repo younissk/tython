@@ -1,0 +1,3 @@
+func read_file(path: str) -> str throws MissingError {
+    return "ok"
+}

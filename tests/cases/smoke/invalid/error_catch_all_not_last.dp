@@ -1,0 +1,12 @@
+record FileError {
+    path: str
+    reason: str
+}
+
+try {
+    print("x")
+} catch any {
+    print("fallback")
+} catch err: FileError {
+    print(err.reason)
+}

@@ -1,0 +1,139 @@
+Module(
+  body=[
+    ClassDef(
+      name='FileError',
+      body=[
+        Expr(
+          value=Call(
+            func=Name(id='__custom_record_marker__', ctx=Load()),
+            args=[
+              Constant(value=False)])),
+        Expr(
+          value=Call(
+            func=Name(id='__custom_class_member__', ctx=Load()),
+            args=[
+              Constant(value='record_field'),
+              Constant(value='path'),
+              Constant(value='str'),
+              Constant(value=None),
+              Constant(value=False),
+              Constant(value=True),
+              Constant(value=True)])),
+        Expr(
+          value=Call(
+            func=Name(id='__custom_class_member__', ctx=Load()),
+            args=[
+              Constant(value='record_field'),
+              Constant(value='reason'),
+              Constant(value='str'),
+              Constant(value=None),
+              Constant(value=False),
+              Constant(value=True),
+              Constant(value=True)]))]),
+    FunctionDef(
+      name='read_file',
+      args=arguments(
+        args=[
+          arg(
+            arg='path',
+            annotation=Name(id='str', ctx=Load()))]),
+      body=[
+        If(
+          test=Compare(
+            left=Name(id='path', ctx=Load()),
+            ops=[
+              Eq()],
+            comparators=[
+              Constant(value='')]),
+          body=[
+            Raise(
+              exc=Call(
+                func=Name(id='__custom_record_literal__', ctx=Load()),
+                args=[
+                  Constant(value='FileError'),
+                  List(
+                    elts=[
+                      Tuple(
+                        elts=[
+                          Constant(value='path'),
+                          Name(id='path', ctx=Load())],
+                        ctx=Load()),
+                      Tuple(
+                        elts=[
+                          Constant(value='reason'),
+                          Constant(value='empty path')],
+                        ctx=Load())],
+                    ctx=Load())]))]),
+        Return(
+          value=Constant(value='ok'))],
+      decorator_list=[
+        Call(
+          func=Name(id='__tython_throws__', ctx=Load()),
+          args=[
+            Constant(value='FileError')])],
+      returns=Name(id='str', ctx=Load())),
+    FunctionDef(
+      name='run',
+      args=arguments(
+        args=[
+          arg(
+            arg='path',
+            annotation=Name(id='str', ctx=Load()))]),
+      body=[
+        Return(
+          value=Call(
+            func=Name(id='__tython_try__', ctx=Load()),
+            args=[
+              Call(
+                func=Name(id='read_file', ctx=Load()),
+                args=[
+                  Name(id='path', ctx=Load())])]))],
+      decorator_list=[
+        Call(
+          func=Name(id='__tython_throws__', ctx=Load()),
+          args=[
+            Constant(value='FileError')])],
+      returns=Name(id='str', ctx=Load())),
+    Try(
+      body=[
+        Expr(
+          value=Call(
+            func=Name(id='__custom_binding_decl__', ctx=Load()),
+            args=[
+              Constant(value='var'),
+              Constant(value='text'),
+              Constant(value=None),
+              Call(
+                func=Name(id='read_file', ctx=Load()),
+                args=[
+                  Constant(value='notes.txt')]),
+              Constant(value=True),
+              Constant(value=False)]))],
+      handlers=[
+        ExceptHandler(
+          type=Name(id='FileError', ctx=Load()),
+          name='err',
+          body=[
+            Expr(
+              value=Call(
+                func=Name(id='print', ctx=Load()),
+                args=[
+                  Attribute(
+                    value=Name(id='err', ctx=Load()),
+                    attr='reason',
+                    ctx=Load())]))]),
+        ExceptHandler(
+          type=Name(id='__TythonRecoverableError', ctx=Load()),
+          name='any',
+          body=[
+            Expr(
+              value=Call(
+                func=Name(id='print', ctx=Load()),
+                args=[
+                  Constant(value='fallback')]))])],
+      finalbody=[
+        Expr(
+          value=Call(
+            func=Name(id='print', ctx=Load()),
+            args=[
+              Constant(value='done')]))])])

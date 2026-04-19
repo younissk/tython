@@ -1,0 +1,5 @@
+try {
+    print("x")
+} catch err: int {
+    print(err)
+}

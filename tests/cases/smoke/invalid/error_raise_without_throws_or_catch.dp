@@ -1,0 +1,11 @@
+record FileError {
+    path: str
+    reason: str
+}
+
+func run() -> none {
+    raise FileError {
+        path: "x"
+        reason: "boom"
+    }
+}

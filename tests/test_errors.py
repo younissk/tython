@@ -199,3 +199,63 @@ def test_error_for_private_method_record_conformance() -> None:
     message = str(exc.value)
     assert "[E2123]" in message
     assert "private method 'speak'" in message
+
+
+def test_error_handling_throws_try_catch_finally_is_supported() -> None:
+    source = (
+        "record FileError {\n"
+        "    path: str\n"
+        "    reason: str\n"
+        "}\n"
+        "func read_file(path: str) -> str throws FileError {\n"
+        "    raise FileError {\n"
+        "        path: path\n"
+        "        reason: \"boom\"\n"
+        "    }\n"
+        "}\n"
+        "func run(path: str) -> str throws FileError {\n"
+        "    return try read_file(path)\n"
+        "}\n"
+        "try {\n"
+        "    read_file(\"x\")\n"
+        "} catch err: FileError {\n"
+        "    print(err.reason)\n"
+        "} catch any {\n"
+        "    print(\"fallback\")\n"
+        "} finally {\n"
+        "    print(\"done\")\n"
+        "}\n"
+    )
+    parse_custom(source)
+
+
+def test_error_for_throwing_call_without_handling() -> None:
+    source = (
+        "record FileError {\n"
+        "    path: str\n"
+        "    reason: str\n"
+        "}\n"
+        "func read_file(path: str) -> str throws FileError {\n"
+        "    raise FileError {\n"
+        "        path: path\n"
+        "        reason: \"boom\"\n"
+        "    }\n"
+        "}\n"
+        "func run() -> str {\n"
+        "    return read_file(\"x\")\n"
+        "}\n"
+    )
+    with pytest.raises(SyntaxError) as exc:
+        parse_custom(source)
+    message = str(exc.value)
+    assert "[E2192]" in message
+    assert "must be handled" in message
+
+
+def test_error_for_catch_non_record_type() -> None:
+    source = "try {\n    print(\"x\")\n} catch err: int {\n    print(err)\n}\n"
+    with pytest.raises(SyntaxError) as exc:
+        parse_custom(source)
+    message = str(exc.value)
+    assert "[E2176]" in message
+    assert "is not a declared record" in message

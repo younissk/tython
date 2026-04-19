@@ -78,21 +78,44 @@ uv run python -m pytest tests/test_differential.py
 Start an interactive Tython REPL:
 
 ```bash
-make repl
+uv run tython repl
 ```
 
-## Transpile .txt to .py
+## CLI
 
-Generate Python from custom `.txt` syntax:
+Run a Tython file (`.txt` or `.ty`):
+
+```bash
+uv run tython run path/to/file.ty
+```
+
+Transpile a Tython file (`.txt` or `.ty`) to Python:
+
+```bash
+uv run tython transpile path/to/file.txt --output path/to/file.py
+```
+
+Show all commands:
+
+```bash
+uv run tython --help
+```
+
+Install globally (usable from anywhere):
+
+```bash
+uv tool install .
+tython --help
+```
+
+## Legacy Command Paths
+
+These remain supported for compatibility:
 
 ```bash
 uv run transpile path/to/file.txt path/to/file.py
-```
-
-Alternative (existing CLI path):
-
-```bash
 uv run python main.py path/to/file.txt --transpile -o path/to/output.py
+make repl
 ```
 
 Possibly in the future:

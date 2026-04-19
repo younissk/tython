@@ -1,0 +1,31 @@
+record FileError {
+    path: str
+    reason: str
+}
+
+func read_file(path: str) -> str throws FileError {
+    if path == "" {
+        raise FileError {
+            path: path
+            reason: "empty path"
+        }
+    }
+    return "ok"
+}
+
+func run(path: str) -> str throws FileError {
+    return try read_file(path)
+}
+
+try {
+    var text = run("notes.txt")
+    print(text)
+} catch err: FileError {
+    print(err.reason)
+} catch any {
+    print("fallback")
+} finally {
+    print("done")
+}
+
+panic("unreachable state")

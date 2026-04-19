@@ -1,77 +1,108 @@
-# Errors and Rejections
+# Errors and Diagnostics
 
-Tython rejects ambiguous or risky constructs at compile time.
+Tython separates recoverable runtime errors from unrecoverable crashes.
 
-## Common Rejections
+## Recoverable Errors (Checked)
 
-- Using a name before declaration
-- Assigning to an undeclared name
-- Reassigning a `const`
-- Missing initializer in `const` or `var` declaration
-- Declaring the same name twice in one scope
-- Shadowing outer local names in nested scopes
-- Invalid naming format for const/var/type names
-- Mixed-type list literals
-- Incompatible initializer type for declared annotation
-- Empty blocks without `pass`
-- `for` loop usage in v1
-- `break`/`continue` outside loops
-- Unreachable statements after `return`/`break`/`continue`
-- Non-call standalone expression statements
-- Invalid ternary condition/type or malformed ternary usage
-
-## Examples
-
-### Invalid `const` naming
+Recoverable errors are typed record values.
 
 ```txt
-const max_users = 100   // invalid
-```
-
-### Invalid reassignment
-
-```txt
-const MAX = 10
-MAX = 11   // invalid
-```
-
-### Missing initializer
-
-```txt
-var count   // invalid
-```
-
-### Undeclared assignment
-
-```txt
-x = 5   // invalid
-```
-
-### Shadowing
-
-```txt
-var count = 0
-if true {
-    var count = 1   // invalid
+record FileError {
+    path: str
+    reason: str
 }
 ```
 
-## Error Philosophy
+Functions that may emit recoverable errors must declare them with `throws`:
 
-Errors are designed to be deterministic and early.
+```txt
+func read_file(path: str) -> str throws FileError {
+    raise FileError {
+        path: path
+        reason: "not found"
+    }
+}
+```
 
-When in doubt, Tython chooses rejection over implicit behavior.
+### Rules
 
-## Error Message Format
+- `raise` is checked.
+- A function/method may raise only error record types declared in its `throws` clause.
+- Throwing calls must be explicit:
+  - Use `try fn(...)` to propagate outward.
+  - Or call inside `try { ... } catch ...` where the thrown type is handled.
+- `throws` is supported for module functions and class methods.
 
-Tython errors use a structured format:
+## Handling Errors
+
+Use `try` / `catch` / `finally`.
+
+```txt
+try {
+    var text = read_file("notes.txt")
+    print(text)
+} catch err: FileError {
+    print(err.reason)
+} catch any {
+    print("fallback")
+} finally {
+    print("done")
+}
+```
+
+### Catch rules
+
+- Typed catch: `catch err: FileError { ... }`
+- Catch-all: `catch err { ... }`
+- Catch-all must be last.
+- Typed matching is exact by record type.
+
+## Panic (Unrecoverable)
+
+Use `panic("message")` for invariant violations and unrecoverable states.
+
+- Panic is not part of `throws`.
+- Panic is not recoverable by `catch`.
+
+## Diagnostic Model
+
+Compiler/runtime failures are represented as structured diagnostics.
+
+Required fields include:
+
+- `code`
+- `severity`
+- `phase`
+- `message`
+- `file`
+- `range`
+- `timestamp`
+
+## Diagnostic Rendering
+
+CLI supports:
+
+- `--errors rich`
+- `--errors compact`
+- `--errors json`
+- `--errors jsonl`
+- `--errors llm`
+
+Additional controls:
+
+- `--export-errors <path>`
+- `--verbose-errors`
+- `--trace`
+
+When errors occur, diagnostics are also persisted to:
+
+- `.project/errors/latest.jsonl`
+- `.project/errors/<timestamp>.jsonl`
+
+## Legacy Message Compatibility
+
+Internal diagnostics still preserve the legacy user-facing message format:
 
 ```txt
 [EXXXX] Line N: message. Hint: actionable next step
-```
-
-Example:
-
-```txt
-[E2022] Line 2: name 'count' is declared but not initialized. Hint: Initialize it before reading, e.g. `count = value`.
 ```

@@ -41,6 +41,18 @@ def test_prelude_keeps_inferred_type_across_snippets() -> None:
     assert "assignment type mismatch for 'test2'" in message
 
 
+def test_prelude_keeps_record_declaration_across_snippets() -> None:
+    declared: dict[str, tuple[str, str | None, bool]] = {}
+    first = parse_custom_source("record User {\nname: str\nage: int\n}\n")
+    declared = check_semantics_with_prelude(first.tree, declared)
+
+    second = parse_custom_source('var tom = User {\nname: "tom"\nage: 23\n}\n')
+    declared = check_semantics_with_prelude(second.tree, declared)
+
+    assert "tom" in declared
+    assert declared["tom"][1] == "User"
+
+
 def test_error_for_truthy_if_condition_requires_bool() -> None:
     source = "var count = 1\nif count {\n    print(count)\n}\n"
     with pytest.raises(SyntaxError) as exc:

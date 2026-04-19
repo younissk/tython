@@ -104,3 +104,7 @@ Alternative (existing CLI path):
 ```bash
 uv run python main.py path/to/file.txt --transpile -o path/to/output.py
 ```
+
+Possibly in the future:
+- Numeric arrays uses numpy by default?
+- What about using polars by default for dataframes?

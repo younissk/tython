@@ -113,6 +113,58 @@ Show all commands:
 uv run tython --help
 ```
 
+## LSP + Vim (v0)
+
+Start the language server over stdio:
+
+```bash
+uv run tython-lsp
+uv run tython lsp start
+```
+
+This repository includes a minimal classic Vim package at `tython-vim/`.
+
+If you use native Vim packages:
+
+```vim
+packadd lsp
+packadd tython-vim
+filetype plugin on
+```
+
+Requirements:
+
+- `yegappan/lsp`
+- Vim 9.0+
+
+For cross-project Vim usage, install the CLI once so Vim can launch it from any working directory:
+
+```bash
+uv tool install .
+```
+
+The Vim plugin prefers `tython lsp start`, then `tython-lsp`, and finally falls back to `uv run tython-lsp`.
+You can override launch command explicitly in your `vimrc`:
+
+```vim
+let g:tython_lsp_cmd = ['tython', 'lsp', 'start']
+```
+
+Quick global setup from this repo:
+
+```bash
+uv tool install .
+make vim-install
+```
+
+If `:set filetype?` is empty on a `.ty` file, run:
+
+```vim
+:filetype plugin on
+:e
+:set filetype?
+```
+
 Install globally (usable from anywhere):
 
 ```bash

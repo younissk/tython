@@ -1,3 +1,4 @@
 [console_scripts]
 transpile = parser.transpile:main
 tython = parser.cli_typer:main
+tython-lsp = parser.lsp.server:main

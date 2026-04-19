@@ -1,0 +1,7 @@
+record Animal {
+    name: str
+}
+
+var fish: Animal = Animal {
+    name: "Nemo"
+}

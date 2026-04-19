@@ -26,6 +26,12 @@ app = typer.Typer(
     add_completion=False,
     help="A small, strict CLI for running and transpiling Tython files.",
 )
+lsp_app = typer.Typer(
+    name="lsp",
+    help="Language server commands.",
+    add_completion=False,
+)
+app.add_typer(lsp_app)
 _console = Console()
 _error_console = Console(stderr=True)
 _ALLOWED_SUFFIXES = {".txt", ".ty"}
@@ -143,6 +149,13 @@ def repl() -> None:
 @app.command("version", help="Show CLI version.")
 def cli_version() -> None:
     _console.print(f"tython {_resolve_version()}")
+
+
+@lsp_app.command("start", help="Start the Tython language server over stdio.")
+def lsp_start() -> None:
+    from .lsp.server import main as lsp_main
+
+    lsp_main()
 
 
 def main() -> None:

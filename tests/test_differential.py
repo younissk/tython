@@ -25,8 +25,12 @@ def test_differential_compat_python_matches_cpython(fixture: Path) -> None:
     compile(custom_ast, str(fixture), "exec")
 
 
+def _custom_fixtures() -> list[Path]:
+    return sorted([*CUSTOM_DIR.glob("*.dp"), *CUSTOM_DIR.glob("*.ty")])
+
+
 @pytest.mark.differential
-@pytest.mark.parametrize("fixture", sorted(CUSTOM_DIR.glob("*.dp")))
+@pytest.mark.parametrize("fixture", _custom_fixtures())
 def test_differential_custom_syntax_lowers_to_expected_python(fixture: Path) -> None:
     source = fixture.read_text()
     expected_path = fixture.with_suffix(".py")

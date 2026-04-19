@@ -102,6 +102,33 @@ def test_help_and_version() -> None:
     assert "transpile" in help_result.output
     assert "repl" in help_result.output
     assert "version" in help_result.output
+    assert "lsp" in help_result.output
 
     assert version_result.exit_code == 0
     assert "tython" in version_result.output
+
+
+def test_lsp_install_vim_writes_plugin_files(tmp_path: Path) -> None:
+    pack_root = tmp_path / "pack"
+
+    result = runner.invoke(
+        app,
+        [
+            "lsp",
+            "install",
+            "vim",
+            "--vim-pack-root",
+            str(pack_root),
+            "--no-install-lsp-plugin",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    plugin_root = pack_root / "tython" / "start" / "tython-vim"
+    assert (plugin_root / "ftdetect" / "tython.vim").exists()
+    assert (plugin_root / "plugin" / "tython_lsp.vim").exists()
+    assert (plugin_root / "syntax" / "tython.vim").exists()
+
+    plugin_text = (plugin_root / "plugin" / "tython_lsp.vim").read_text()
+    assert "LspAddServer" in plugin_text
+    assert "'tython', 'lsp', 'start'" in plugin_text

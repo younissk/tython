@@ -19,6 +19,8 @@ parser/custom_frontend/rewriters_misc.py
 parser/custom_frontend/rewriters_structured.py
 parser/custom_frontend/rewriters_ternary.py
 parser/custom_frontend/type_system.py
+parser/lsp/__init__.py
+parser/lsp/server.py
 parser/semantics/__init__.py
 parser/semantics/api.py
 parser/semantics/checker.py
@@ -32,6 +34,7 @@ tests/test_differential.py
 tests/test_errors.py
 tests/test_golden.py
 tests/test_lowering.py
+tests/test_lsp.py
 tests/test_main_transpile.py
 tests/test_main_txt_runtime.py
 tests/test_smoke.py

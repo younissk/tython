@@ -1,3 +1,4 @@
+mkdocs-shadcn>=0.10.5
 pegen>=0.3.0
 pytest>=9.0.3
 rich>=14.0.0

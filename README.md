@@ -17,7 +17,7 @@ This repository focuses on grammar experimentation, parser validation, and docs-
 
 ## Docs
 
-Docs are built with MkDocs Material.
+Docs are built with MkDocs Shadcn.
 
 Preview locally:
 

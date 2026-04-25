@@ -4,6 +4,7 @@ Version: 0.1.0
 Summary: Add your description here
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: mkdocs-shadcn>=0.10.5
 Requires-Dist: pegen>=0.3.0
 Requires-Dist: pytest>=9.0.3
 Requires-Dist: rich>=14.0.0

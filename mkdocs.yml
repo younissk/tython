@@ -6,37 +6,11 @@ repo_name: younissk/tython
 docs_dir: docs
 site_dir: site
 
-theme:
-  name: material
-  language: en
-  features:
-    - navigation.instant
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - search.suggest
-    - search.highlight
-    - content.code.copy
-    - content.code.annotate
-  palette:
-    - scheme: default
-      media: "(prefers-color-scheme: light)"
-      primary: black
-      accent: blue
-      toggle:
-        icon: material/weather-night
-        name: Switch to dark mode
-    - scheme: slate
-      media: "(prefers-color-scheme: dark)"
-      primary: black
-      accent: blue
-      toggle:
-        icon: material/weather-sunny
-        name: Switch to light mode
+theme: shadcn
 
 plugins:
   - search
+  - excalidraw
 
 markdown_extensions:
   - admonition

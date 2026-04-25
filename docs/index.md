@@ -2,7 +2,7 @@
 
 Tython is strict, explicit, and parser-first.
 
-This site is built with MkDocs Material and tracks compiler behavior, not a separate docs-only design.
+This site is built with MkDocs Shadcn and tracks compiler behavior, not a separate docs-only design.
 
 ## Start Here
 

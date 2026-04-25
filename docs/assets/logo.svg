@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Tython</title>
+  <desc id="desc">Tython logo mark</desc>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#172554" />
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#g)" />
+  <rect x="58" y="58" width="140" height="140" rx="28" fill="#ffffff" fill-opacity="0.12" />
+  <path d="M82 88h92v24h-34v76h-24v-76H82z" fill="#ffffff" />
+</svg>

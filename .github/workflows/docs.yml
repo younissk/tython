@@ -38,7 +38,7 @@ jobs:
 
       - name: Verify Material shell markers
         run: |
-          rg -n "mkdocs-material|md-header|data-md-component=\"search\"" site/index.html
+          grep -nE 'mkdocs-material|md-header|data-md-component="search"' site/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

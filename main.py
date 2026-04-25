@@ -1,4 +1,4 @@
-from parser.cli import main
+from parser.cli_typer import main
 
 
 if __name__ == "__main__":

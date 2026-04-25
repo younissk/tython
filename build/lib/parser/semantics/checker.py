@@ -8,6 +8,9 @@ from ..custom_frontend import (
     CLASS_MARKER_SENTINEL,
     CLASS_MEMBER_SENTINEL,
     ENUM_SENTINEL,
+    FILE_IMPORT_SENTINEL,
+    NATIVE_IMPORT_SENTINEL,
+    PYIMPORT_SENTINEL,
     PUB_DECORATOR_SENTINEL,
     RECOVERABLE_ERROR_BASE_NAME,
     RECORD_LITERAL_SENTINEL,
@@ -103,6 +106,51 @@ class SemanticChecker:
                 terminated_at = stmt
 
     def _check_statement(self, stmt: ast.stmt) -> None:
+        if self._is_native_import_stmt(stmt):
+            target, alias = self._extract_native_import(stmt)
+            if "/" not in target:
+                raise SyntaxError(
+                    err(
+                        "E2200",
+                        stmt.lineno,
+                        "native import must use slash-separated module path",
+                        "Use `import pkg/mod` form.",
+                    )
+                )
+            bound_name = alias or target.rsplit("/", 1)[-1]
+            self._declare_name(bound_name, "const", None, stmt.lineno, initialized=True)
+            return
+
+        if self._is_file_import_stmt(stmt):
+            path, alias = self._extract_file_import(stmt)
+            if not (path.startswith("./") or path.startswith("../")):
+                raise SyntaxError(
+                    err(
+                        "E2210",
+                        stmt.lineno,
+                        "file import path must be relative",
+                        "Use `./` or `../` path prefix.",
+                    )
+                )
+            self._declare_name(alias, "const", None, stmt.lineno, initialized=True)
+            return
+
+        if self._is_pyimport_stmt(stmt):
+            module_name, alias = self._extract_pyimport(stmt)
+            atoms = module_name.split(".")
+            if any(not IDENTIFIER_RE.fullmatch(atom) for atom in atoms):
+                raise SyntaxError(
+                    err(
+                        "E2211",
+                        stmt.lineno,
+                        f"invalid pyimport module '{module_name}'",
+                        "Use dotted Python module path identifiers only.",
+                    )
+                )
+            bound_name = alias or module_name.split(".", 1)[0]
+            self._declare_name(bound_name, "const", None, stmt.lineno, initialized=True)
+            return
+
         if self._is_binding_decl_stmt(stmt):
             decl = self._extract_binding_decl(stmt)
             self._declare_binding(decl)
@@ -1809,6 +1857,13 @@ class SemanticChecker:
     def _infer_call_result(
         self, expr: ast.Call, *, enforce_checked_throws: bool
     ) -> tuple[str | None, set[str]]:
+        if isinstance(expr.func, ast.Name) and expr.func.id in {
+            NATIVE_IMPORT_SENTINEL,
+            FILE_IMPORT_SENTINEL,
+            PYIMPORT_SENTINEL,
+        }:
+            return "none", set()
+
         if isinstance(expr.func, ast.Name) and expr.func.id == TRY_PROPAGATE_SENTINEL:
             return self._check_try_propagate_call(expr)
 
@@ -2585,6 +2640,91 @@ class SemanticChecker:
             if scope.kind == "function":
                 return scope.function_id
         return None
+
+    def _is_native_import_stmt(self, stmt: ast.stmt) -> bool:
+        return (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == NATIVE_IMPORT_SENTINEL
+        )
+
+    def _is_file_import_stmt(self, stmt: ast.stmt) -> bool:
+        return (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == FILE_IMPORT_SENTINEL
+        )
+
+    def _is_pyimport_stmt(self, stmt: ast.stmt) -> bool:
+        return (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == PYIMPORT_SENTINEL
+        )
+
+    def _extract_native_import(self, stmt: ast.stmt) -> tuple[str, str | None]:
+        call = stmt.value
+        assert isinstance(call, ast.Call)
+        if len(call.args) != 2 or call.keywords:
+            raise SyntaxError(
+                err(
+                    "E2201",
+                    stmt.lineno,
+                    "internal native import IR shape is invalid",
+                    "Report this as an internal parser bug.",
+                )
+            )
+        target_node, alias_node = call.args
+        if not isinstance(target_node, ast.Constant) or not isinstance(target_node.value, str):
+            raise SyntaxError(err("E2202", stmt.lineno, "native import target must be string"))
+        if not isinstance(alias_node, ast.Constant) or (
+            alias_node.value is not None and not isinstance(alias_node.value, str)
+        ):
+            raise SyntaxError(err("E2203", stmt.lineno, "native import alias must be string/none"))
+        return target_node.value, alias_node.value
+
+    def _extract_file_import(self, stmt: ast.stmt) -> tuple[str, str]:
+        call = stmt.value
+        assert isinstance(call, ast.Call)
+        if len(call.args) != 2 or call.keywords:
+            raise SyntaxError(
+                err(
+                    "E2204",
+                    stmt.lineno,
+                    "internal file import IR shape is invalid",
+                    "Report this as an internal parser bug.",
+                )
+            )
+        path_node, alias_node = call.args
+        if not isinstance(path_node, ast.Constant) or not isinstance(path_node.value, str):
+            raise SyntaxError(err("E2205", stmt.lineno, "file import path must be string"))
+        if not isinstance(alias_node, ast.Constant) or not isinstance(alias_node.value, str):
+            raise SyntaxError(err("E2206", stmt.lineno, "file import alias must be string"))
+        return path_node.value, alias_node.value
+
+    def _extract_pyimport(self, stmt: ast.stmt) -> tuple[str, str | None]:
+        call = stmt.value
+        assert isinstance(call, ast.Call)
+        if len(call.args) != 2 or call.keywords:
+            raise SyntaxError(
+                err(
+                    "E2207",
+                    stmt.lineno,
+                    "internal pyimport IR shape is invalid",
+                    "Report this as an internal parser bug.",
+                )
+            )
+        module_node, alias_node = call.args
+        if not isinstance(module_node, ast.Constant) or not isinstance(module_node.value, str):
+            raise SyntaxError(err("E2208", stmt.lineno, "pyimport module must be string"))
+        if not isinstance(alias_node, ast.Constant) or (
+            alias_node.value is not None and not isinstance(alias_node.value, str)
+        ):
+            raise SyntaxError(err("E2209", stmt.lineno, "pyimport alias must be string/none"))
+        return module_node.value, alias_node.value
 
     def _is_binding_decl_stmt(self, stmt: ast.stmt) -> bool:
         return (

@@ -1,4 +1,4 @@
-.PHONY: format check test repl vim-install all
+.PHONY: format check test repl vim-install nvim-install all
 
 format:
 	uv run ruff format .
@@ -16,5 +16,9 @@ repl:
 vim-install:
 	mkdir -p "$(HOME)/.vim/pack/tython/start"
 	ln -sfn "$(CURDIR)/tython-vim" "$(HOME)/.vim/pack/tython/start/tython-vim"
+
+nvim-install:
+	mkdir -p "$(HOME)/.local/share/nvim/site/pack/tython/start"
+	ln -sfn "$(CURDIR)/tython-vim" "$(HOME)/.local/share/nvim/site/pack/tython/start/tython-vim"
 
 all: check test

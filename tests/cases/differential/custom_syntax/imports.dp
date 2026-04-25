@@ -1,0 +1,6 @@
+import net/http as http
+import "./local/file.ty" as file
+pyimport requests as req
+print(http)
+print(file)
+print(req)

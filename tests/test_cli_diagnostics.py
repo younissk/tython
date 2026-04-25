@@ -1,4 +1,3 @@
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -18,59 +17,68 @@ def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_cli_json_renderer_emits_structured_diagnostic(tmp_path: Path) -> None:
-    source = "var value\n"
-    file_path = tmp_path / "invalid.txt"
-    file_path.write_text(source)
+def _write_project(root: Path, source: str) -> None:
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "main.ty").write_text(source)
+    (root / "project.toml").write_text(
+        """
+[project]
+name = "my_app"
+version = "0.1.0"
+entry = "src/main.ty"
 
-    completed = _run_cli(str(file_path), "--errors", "json", cwd=tmp_path)
-
-    assert completed.returncode == 1
-    payload = json.loads(completed.stdout)
-    for required in ["code", "severity", "phase", "message", "file", "range", "timestamp"]:
-        assert required in payload
-    assert payload["severity"] == "error"
-
-
-def test_cli_jsonl_export_writes_file(tmp_path: Path) -> None:
-    source = "var value\n"
-    file_path = tmp_path / "invalid.txt"
-    export_path = tmp_path / "diag.jsonl"
-    file_path.write_text(source)
-
-    completed = _run_cli(
-        str(file_path),
-        "--errors",
-        "jsonl",
-        "--export-errors",
-        str(export_path),
-        cwd=tmp_path,
+[python]
+dependencies = []
+""".strip()
+        + "\n"
     )
 
-    assert completed.returncode == 1
-    assert export_path.exists()
-    exported = json.loads(export_path.read_text().strip())
-    assert exported["code"].startswith("E")
 
+def test_invalid_import_form_reports_explicit_error(tmp_path: Path) -> None:
+    _write_project(tmp_path, "import requests\n")
 
-def test_cli_runtime_exception_maps_to_panic_diagnostic(tmp_path: Path) -> None:
-    source = "var x = 1 / 0\n"
-    file_path = tmp_path / "runtime_panic.txt"
-    export_path = tmp_path / "runtime.jsonl"
-    file_path.write_text(source)
-
-    completed = _run_cli(
-        str(file_path),
-        "--errors",
-        "compact",
-        "--export-errors",
-        str(export_path),
-        cwd=tmp_path,
-    )
+    completed = _run_cli("build", cwd=tmp_path)
 
     assert completed.returncode == 1
-    assert "internal[P0001]" in completed.stdout
+    assert "E1028" in completed.stderr
+    assert "invalid import form" in completed.stderr
 
-    exported = json.loads(export_path.read_text().strip())
-    assert exported["code"] == "P0001"
-    assert exported["phase"] == "panic"
+
+def test_missing_project_manifest_reports_error(tmp_path: Path) -> None:
+    completed = _run_cli("build", cwd=tmp_path)
+
+    assert completed.returncode == 1
+    assert "project.toml not found" in completed.stderr
+
+
+def test_missing_pyimport_dependency_has_world_specific_message(tmp_path: Path) -> None:
+    _write_project(tmp_path, "pyimport definitely_not_installed_pkg as dep\nprint(dep)\n")
+
+    completed = _run_cli("run", "src/main.ty", cwd=tmp_path)
+
+    assert completed.returncode == 1
+    assert "Python dependency error: pyimport 'definitely_not_installed_pkg'" in completed.stderr
+    assert "Python dependency world" in completed.stderr
+
+
+def test_lint_valid_project_succeeds(tmp_path: Path) -> None:
+    _write_project(tmp_path, "print(\"ok\")\n")
+    (tmp_path / "src" / "extra.ty").write_text("var count = 1\nprint(count)\n")
+
+    completed = _run_cli("lint", cwd=tmp_path)
+
+    assert completed.returncode == 0
+    assert "Linted 2 file(s)" in completed.stdout
+
+
+def test_lint_reports_multiple_failing_files(tmp_path: Path) -> None:
+    _write_project(tmp_path, "print(x)\n")
+    (tmp_path / "src" / "extra.ty").write_text("var count: int\nprint(count)\n")
+
+    completed = _run_cli("lint", cwd=tmp_path)
+
+    assert completed.returncode == 1
+    assert "src/main.ty" in completed.stderr
+    assert "src/extra.ty" in completed.stderr
+    assert "E2024" in completed.stderr
+    assert "E2022" in completed.stderr

@@ -5,7 +5,14 @@ import re
 import token
 import tokenize
 
-from .constants import IDENTIFIER_RE, RECORD_LITERAL_SENTINEL, TRY_PROPAGATE_SENTINEL
+from .constants import (
+    FILE_IMPORT_SENTINEL,
+    IDENTIFIER_RE,
+    NATIVE_IMPORT_SENTINEL,
+    PYIMPORT_SENTINEL,
+    RECORD_LITERAL_SENTINEL,
+    TRY_PROPAGATE_SENTINEL,
+)
 from .errors import err
 from .helpers import split_once_top_level
 
@@ -217,6 +224,72 @@ def rewrite_try_propagation(source: str) -> str:
     for line in lines:
         out_lines.append(_rewrite_try_in_line(line))
     return "\n".join(out_lines) + "\n"
+
+
+def rewrite_import_forms(source: str) -> str:
+    out: list[str] = []
+    pyimport_re = re.compile(
+        r"^(?P<indent>[ \t]*)pyimport[ \t]+(?P<module>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:[ \t]+as[ \t]+(?P<alias>[A-Za-z_][A-Za-z0-9_]*))?[ \t]*$"
+    )
+    file_import_re = re.compile(
+        r"^(?P<indent>[ \t]*)import[ \t]+(?P<quote>['\"])(?P<path>.+?)(?P=quote)[ \t]+as[ \t]+(?P<alias>[A-Za-z_][A-Za-z0-9_]*)[ \t]*$"
+    )
+    native_import_re = re.compile(
+        r"^(?P<indent>[ \t]*)import[ \t]+(?P<target>[A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)+)[ \t]+as[ \t]+(?P<alias>[A-Za-z_][A-Za-z0-9_]*)[ \t]*$"
+    )
+
+    for lineno, line in enumerate(source.splitlines(), start=1):
+        code, sep, comment = line.partition("#")
+        stripped = code.strip()
+        if stripped == "":
+            out.append(line)
+            continue
+
+        py_match = pyimport_re.match(code)
+        if py_match is not None:
+            indent = py_match.group("indent")
+            module = py_match.group("module")
+            alias = py_match.group("alias")
+            rendered = f"{indent}{PYIMPORT_SENTINEL}({module!r}, {alias!r})"
+            if sep:
+                rendered += f"  #{comment}"
+            out.append(rendered)
+            continue
+
+        file_match = file_import_re.match(code)
+        if file_match is not None:
+            indent = file_match.group("indent")
+            path = file_match.group("path")
+            alias = file_match.group("alias")
+            rendered = f"{indent}{FILE_IMPORT_SENTINEL}({path!r}, {alias!r})"
+            if sep:
+                rendered += f"  #{comment}"
+            out.append(rendered)
+            continue
+
+        native_match = native_import_re.match(code)
+        if native_match is not None:
+            indent = native_match.group("indent")
+            target = native_match.group("target")
+            alias = native_match.group("alias")
+            rendered = f"{indent}{NATIVE_IMPORT_SENTINEL}({target!r}, {alias!r})"
+            if sep:
+                rendered += f"  #{comment}"
+            out.append(rendered)
+            continue
+
+        if stripped.startswith("import ") or stripped.startswith("pyimport "):
+            raise SyntaxError(
+                err(
+                    "E1028",
+                    lineno,
+                    "invalid import form",
+                    "Use one of: `import pkg/mod`, `import \"./file.ty\" as alias`, `pyimport module [as alias]`.",
+                )
+            )
+
+        out.append(line)
+    return "\n".join(out) + "\n"
 
 
 def _rewrite_try_in_line(line: str) -> str:

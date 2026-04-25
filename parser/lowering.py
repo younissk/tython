@@ -1,10 +1,14 @@
 import ast
+import hashlib
 
 from .custom_frontend import (
     BINDING_SENTINEL,
     CLASS_MARKER_SENTINEL,
     CLASS_MEMBER_SENTINEL,
     ENUM_SENTINEL,
+    FILE_IMPORT_SENTINEL,
+    NATIVE_IMPORT_SENTINEL,
+    PYIMPORT_SENTINEL,
     PUB_DECORATOR_SENTINEL,
     RECOVERABLE_ERROR_BASE_NAME,
     RECORD_LITERAL_SENTINEL,
@@ -15,21 +19,33 @@ from .custom_frontend import (
 )
 
 
-def lower(ir: ast.AST) -> ast.AST:
+def lower(
+    ir: ast.AST,
+    *,
+    native_import_map: dict[str, str] | None = None,
+    file_import_map: dict[str, str] | None = None,
+) -> ast.AST:
     if not isinstance(ir, ast.AST):
         raise TypeError(f"expected ast.AST, got {type(ir).__name__}")
-    lowered = _LowerCustomIR().visit(ir)
+    lowered = _LowerCustomIR(
+        native_import_map=native_import_map or {},
+        file_import_map=file_import_map or {},
+    ).visit(ir)
     ast.fix_missing_locations(lowered)
     return lowered
 
 
 class _LowerCustomIR(ast.NodeTransformer):
-    def __init__(self) -> None:
+    def __init__(
+        self, *, native_import_map: dict[str, str], file_import_map: dict[str, str]
+    ) -> None:
         self._needs_enum_import = False
         self._needs_dataclass_import = False
         self._needs_recoverable_base = False
         self._uses_panic = False
         self._thrown_record_types: set[str] = set()
+        self._native_import_map = native_import_map
+        self._file_import_map = file_import_map
 
     def visit_Module(self, node: ast.Module) -> ast.Module:
         self.generic_visit(node)
@@ -123,6 +139,12 @@ class _LowerCustomIR(ast.NodeTransformer):
                 return self._lower_enum_stmt(node.value)
             if node.value.func.id == BINDING_SENTINEL:
                 return self._lower_binding_stmt(node.value)
+            if node.value.func.id == NATIVE_IMPORT_SENTINEL:
+                return self._lower_native_import_stmt(node.value)
+            if node.value.func.id == FILE_IMPORT_SENTINEL:
+                return self._lower_file_import_stmt(node.value)
+            if node.value.func.id == PYIMPORT_SENTINEL:
+                return self._lower_pyimport_stmt(node.value)
         return node
 
     def _lower_stmt(self, stmt: ast.stmt) -> ast.stmt | None:
@@ -133,11 +155,44 @@ class _LowerCustomIR(ast.NodeTransformer):
                     return self._lower_enum_stmt(call)
                 if call.func.id == BINDING_SENTINEL:
                     return self._lower_binding_stmt(call)
+                if call.func.id == NATIVE_IMPORT_SENTINEL:
+                    return self._lower_native_import_stmt(call)
+                if call.func.id == FILE_IMPORT_SENTINEL:
+                    return self._lower_file_import_stmt(call)
+                if call.func.id == PYIMPORT_SENTINEL:
+                    return self._lower_pyimport_stmt(call)
         if isinstance(stmt, ast.ClassDef):
             lowered = self._lower_classdef(stmt)
             if lowered is not None:
                 return lowered
         return None
+
+    def _lower_native_import_stmt(self, call: ast.Call) -> ast.Import:
+        if len(call.args) != 2 or call.keywords:
+            raise SyntaxError("internal native-import IR shape is invalid")
+        target = _const_str(call.args[0], "native import target")
+        alias = _const_optional_str(call.args[1], "native import alias")
+        module_name = self._native_import_map.get(target, target.replace("/", "."))
+        asname = alias or module_name.rsplit(".", 1)[-1]
+        return ast.Import(names=[ast.alias(name=module_name, asname=asname)])
+
+    def _lower_file_import_stmt(self, call: ast.Call) -> ast.Import:
+        if len(call.args) != 2 or call.keywords:
+            raise SyntaxError("internal file-import IR shape is invalid")
+        path = _const_str(call.args[0], "file import path")
+        alias = _const_str(call.args[1], "file import alias")
+        module_name = self._file_import_map.get(path)
+        if module_name is None:
+            digest = hashlib.sha1(path.encode("utf-8")).hexdigest()[:12]
+            module_name = f"__tython_file_{digest}"
+        return ast.Import(names=[ast.alias(name=module_name, asname=alias)])
+
+    def _lower_pyimport_stmt(self, call: ast.Call) -> ast.Import:
+        if len(call.args) != 2 or call.keywords:
+            raise SyntaxError("internal pyimport IR shape is invalid")
+        module_name = _const_str(call.args[0], "pyimport module")
+        alias = _const_optional_str(call.args[1], "pyimport alias")
+        return ast.Import(names=[ast.alias(name=module_name, asname=alias)])
 
     def _lower_enum_stmt(self, call: ast.Call) -> ast.ClassDef:
         if len(call.args) != 2 or call.keywords:

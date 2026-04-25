@@ -1,0 +1,2 @@
+var name = "world"
+var msg = f"hello {name}"

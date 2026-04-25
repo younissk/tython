@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from .rewriters_brace import rewrite_brace_and_functions
 from .rewriters_misc import (
+    rewrite_import_forms,
     rewrite_lowercase_literals,
     rewrite_named_call_args,
     rewrite_record_literal_blocks,
@@ -25,6 +26,7 @@ def parse_custom_source(source: str) -> CustomFrontendOutput:
     rewritten = rewrite_record_literal_blocks(source)
     rewritten = rewrite_this_references(rewritten)
     rewritten = rewrite_brace_and_functions(rewritten)
+    rewritten = rewrite_import_forms(rewritten)
     rewritten = rewrite_enum_blocks(rewritten)
     rewritten = rewrite_bindings(rewritten)
     rewritten = rewrite_ternary_expressions(rewritten)

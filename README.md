@@ -81,18 +81,36 @@ Start an interactive Tython REPL:
 uv run tython repl
 ```
 
-## CLI
+## CLI (Project-First v1)
 
-Run a Tython file (`.txt` or `.ty`):
+Lock native git dependencies:
 
 ```bash
-uv run tython run path/to/file.ty
+uv run tython lock
 ```
 
-Transpile a Tython file (`.txt` or `.ty`) to Python:
+Build generated Python project into `.tython/build/`:
 
 ```bash
-uv run tython transpile path/to/file.txt --output path/to/file.py
+uv run tython build
+```
+
+Run source path in project context:
+
+```bash
+uv run tython run src/main.ty
+```
+
+Add native package (git):
+
+```bash
+uv run tython add https://github.com/example/http.tython --rev <40-char-commit-sha>
+```
+
+Add Python dependency passthrough:
+
+```bash
+uv run tython add \"requests>=2.32\" --py
 ```
 
 Show all commands:
@@ -101,7 +119,7 @@ Show all commands:
 uv run tython --help
 ```
 
-## LSP + Vim (v0)
+## LSP + Vim / Neovim (v0)
 
 Start the language server over stdio:
 
@@ -110,7 +128,7 @@ uv run tython-lsp
 uv run tython lsp start
 ```
 
-This repository includes a minimal classic Vim package at `tython-vim/`.
+This repository includes a minimal editor package at `tython-vim/`.
 
 If you use native Vim packages:
 
@@ -137,6 +155,12 @@ Fast setup command:
 tython lsp install vim
 ```
 
+Neovim setup command:
+
+```bash
+tython lsp install nvim
+```
+
 The Vim plugin prefers `tython lsp start`, then `tython-lsp`, and finally falls back to `uv run tython-lsp`.
 You can override launch command explicitly in your `vimrc`:
 
@@ -144,11 +168,18 @@ You can override launch command explicitly in your `vimrc`:
 let g:tython_lsp_cmd = ['tython', 'lsp', 'start']
 ```
 
+Neovim uses builtin LSP. Same override works in `init.lua`:
+
+```lua
+vim.g.tython_lsp_cmd = { 'tython', 'lsp', 'start' }
+```
+
 Quick global setup from this repo:
 
 ```bash
 uv tool install .
 make vim-install
+make nvim-install
 ```
 
 If `:set filetype?` is empty on a `.ty` file, run:
@@ -168,13 +199,49 @@ tython --help
 
 ## Legacy Command Paths
 
-These remain supported for compatibility:
+Legacy standalone `.txt`/single-file flows are removed in v1.
+Use project mode (`project.toml` + `src/` + `tython build/run`) instead.
 
-```bash
-uv run transpile path/to/file.txt path/to/file.py
-uv run python main.py path/to/file.txt --transpile -o path/to/output.py
-make repl
-```
+## TODO
+
+### Docs
+
+- official website
+- docs page
+- getting started guide
+- notebook support
+- in-browser playground
+- feature voting in the docs so readers can upvote and downvote language ideas
+- language reference
+- standard library reference
+- FAQ
+- design docs / rationale
+
+### Standard library
+
+A language without a standard library is usually painful to use.
+
+Typical standard library areas:
+
+- strings
+- numbers
+- collections
+- files
+- networking
+- dates and times
+- math
+- regular expressions
+- JSON / serialization
+- concurrency primitives
+- process management
+- testing utilities
+- centralized testing framework
+- package registry
+- binary distribution story
+- how users install the language
+- logging
+- cryptography basics
+- OS interaction
 
 Possibly in the future:
 - Numeric arrays uses numpy by default?

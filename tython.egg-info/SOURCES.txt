@@ -6,6 +6,8 @@ parser/cli_typer.py
 parser/core.py
 parser/diagnostics.py
 parser/lowering.py
+parser/project.py
+parser/project_build.py
 parser/repl.py
 parser/transpile.py
 parser/custom_frontend/__init__.py

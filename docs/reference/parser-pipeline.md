@@ -6,6 +6,7 @@ This page describes how custom Tython syntax is processed internally.
 
 1. Normalize source input.
 2. Rewrite custom syntax:
+   - strict import forms (`import pkg/mod`, `import "./file.ty" as alias`, `pyimport module`)
    - brace blocks (`{}`)
    - `func` declarations
    - checked error syntax (`throws`, `catch`, `try expr`)
@@ -16,7 +17,7 @@ This page describes how custom Tython syntax is processed internally.
    - lowercase literals (`true`, `false`, `none`)
 3. Parse rewritten code into Python AST.
 4. Run semantic checks (scope, naming, mutability, declarations, conservative typing, class/record conformance).
-5. Lower custom IR nodes (bindings, enums, records/classes, record literals) into final Python AST.
+5. Lower custom IR nodes (bindings, enums, records/classes, record literals, strict imports) into final Python AST.
 
 ## Stable Public API
 

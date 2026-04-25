@@ -18,8 +18,17 @@ def parse_custom(source: str) -> ast.AST:
     return frontend.tree
 
 
-def lower(ir: ast.AST) -> ast.AST:
-    return lower_ast(ir)
+def lower(
+    ir: ast.AST,
+    *,
+    native_import_map: dict[str, str] | None = None,
+    file_import_map: dict[str, str] | None = None,
+) -> ast.AST:
+    return lower_ast(
+        ir,
+        native_import_map=native_import_map,
+        file_import_map=file_import_map,
+    )
 
 
 def parse_file(path: str | Path, mode: str = "exec") -> ast.AST:

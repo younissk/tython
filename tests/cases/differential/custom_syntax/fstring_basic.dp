@@ -1,0 +1,3 @@
+var name = "world"
+var pi = 3.14159
+var msg = f"hello {name}, pi={pi:.2f}"

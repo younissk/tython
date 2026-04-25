@@ -4,11 +4,17 @@ import ast
 
 from .checker import SemanticChecker
 from .constants import BUILTIN_NAMES
-from .models import ClassDecl, FunctionSignature, RecordDecl, Symbol
+from .models import ClassDecl, FunctionSignature, RecordDecl, SemanticAnalysis, Symbol
 
 
 def check_semantics(tree: ast.AST) -> None:
     SemanticChecker().check(tree)
+
+
+def analyze_semantics(tree: ast.AST) -> SemanticAnalysis:
+    checker = SemanticChecker()
+    checker.check(tree)
+    return checker.analysis
 
 
 class PreludeState(dict[str, tuple[str, str | None, bool]]):
@@ -49,9 +55,11 @@ def check_semantics_with_prelude(
     for name, (kind, type_name, initialized) in state.items():
         module_scope.symbols[name] = Symbol(
             name=name,
+            qualified_name=name,
             kind=kind,
             type_name=type_name,
             lineno=0,
+            col_offset=0,
             function_id=None,
             initialized=initialized,
         )

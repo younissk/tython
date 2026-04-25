@@ -38,10 +38,14 @@ from .models import (
     ClassMemberDecl,
     FunctionParam,
     FunctionSignature,
+    ReferenceSite,
     RecordDecl,
     RecordFieldDecl,
+    SemanticAnalysis,
+    SemanticSymbol,
     Scope,
     Symbol,
+    SourceRange,
 )
 from .type_utils import (
     annotation_to_custom_type,
@@ -66,9 +70,11 @@ class SemanticChecker:
         self._function_signatures: dict[str, FunctionSignature] = {}
         self._record_decls: dict[str, RecordDecl] = {}
         self._class_decls: dict[str, ClassDecl] = {}
+        self._analysis = SemanticAnalysis()
         self._return_type_stack: list[str] = []
         self._loop_depth = 0
         self._current_class_name: str | None = None
+        self._current_callable_name: str | None = None
         self._class_method_names: set[str] = set()
         self._class_field_names: set[str] = set()
         self._current_class_member_map: dict[str, ClassMemberDecl] = {}
@@ -77,9 +83,11 @@ class SemanticChecker:
         for builtin in BUILTIN_NAMES:
             self._scopes[0].symbols[builtin] = Symbol(
                 name=builtin,
+                qualified_name=builtin,
                 kind="const",
                 type_name=None,
                 lineno=0,
+                col_offset=0,
                 function_id=None,
                 initialized=True,
             )
@@ -87,7 +95,12 @@ class SemanticChecker:
     def check(self, tree: ast.AST) -> None:
         if not isinstance(tree, ast.Module):
             raise SyntaxError(err("E2001", 1, "custom parser expects module input"))
+        self._analysis = SemanticAnalysis()
         self._check_statements(tree.body)
+
+    @property
+    def analysis(self) -> SemanticAnalysis:
+        return self._analysis
 
     def _check_statements(self, statements: list[ast.stmt]) -> None:
         terminated_at: ast.stmt | None = None
@@ -159,12 +172,24 @@ class SemanticChecker:
         if self._is_enum_decl_stmt(stmt):
             enum_name = self._extract_enum_name(stmt)
             self._check_type_name(enum_name, stmt.lineno)
+            self._record_symbol(
+                name=enum_name,
+                qualified_name=enum_name,
+                kind="enum",
+                type_name=enum_name,
+                location=(stmt.lineno, stmt.col_offset + 1),
+                parent_qname=None,
+                is_public=True,
+            )
             self._declare_name(
                 enum_name,
                 "const",
                 enum_name,
                 stmt.lineno,
                 initialized=True,
+                location=(stmt.lineno, stmt.col_offset + 1),
+                symbol_kind="enum",
+                is_public=True,
             )
             return
 
@@ -398,9 +423,21 @@ class SemanticChecker:
             return_type=raw_signature.return_type,
             throws=declared_throws,
             is_public=is_public,
+            location=(stmt.lineno, stmt.col_offset + 1),
         )
 
-        self._declare_name(stmt.name, "const", None, stmt.lineno, initialized=True)
+        self._declare_name(
+            stmt.name,
+            "const",
+            None,
+            stmt.lineno,
+            initialized=True,
+            location=(stmt.lineno, stmt.col_offset + 1),
+            symbol_kind="function",
+            is_public=is_public,
+        )
+        previous_callable = self._current_callable_name
+        self._current_callable_name = stmt.name
         self._function_signatures[stmt.name] = signature
 
         function_id = self._next_function_id
@@ -417,6 +454,8 @@ class SemanticChecker:
                     param.type_name,
                     stmt.lineno,
                     initialized=True,
+                    location=param.location,
+                    symbol_kind="parameter",
                 )
             self._check_statements(stmt.body)
             if return_type != "none" and not self._block_guarantees_return(stmt.body):
@@ -432,6 +471,7 @@ class SemanticChecker:
             self._throws_stack.pop()
             self._return_type_stack.pop()
             self._scopes.pop()
+            self._current_callable_name = previous_callable
 
     def _check_class_or_record_decl(self, stmt: ast.ClassDef) -> None:
         if self._scopes[-1].kind != "module":
@@ -466,6 +506,15 @@ class SemanticChecker:
         )
 
     def _check_record_decl(self, stmt: ast.ClassDef, is_public: bool) -> None:
+        self._record_symbol(
+            name=stmt.name,
+            qualified_name=stmt.name,
+            kind="record",
+            type_name=stmt.name,
+            location=(stmt.lineno, stmt.col_offset + 1),
+            parent_qname=None,
+            is_public=is_public,
+        )
         fields: list[RecordFieldDecl] = []
         seen_names: set[str] = set()
         for member_stmt in stmt.body:
@@ -517,6 +566,15 @@ class SemanticChecker:
                     location=member.location,
                 )
             )
+            self._record_symbol(
+                name=member.name,
+                qualified_name=f"{stmt.name}.{member.name}",
+                kind="field",
+                type_name=member.type_name,
+                location=member.location,
+                parent_qname=stmt.name,
+                is_public=True,
+            )
 
         record_decl = RecordDecl(
             name=stmt.name,
@@ -525,7 +583,16 @@ class SemanticChecker:
             location=(stmt.lineno, stmt.col_offset),
         )
         self._record_decls[stmt.name] = record_decl
-        self._declare_name(stmt.name, "const", stmt.name, stmt.lineno, initialized=True)
+        self._declare_name(
+            stmt.name,
+            "const",
+            stmt.name,
+            stmt.lineno,
+            initialized=True,
+            location=(stmt.lineno, stmt.col_offset + 1),
+            symbol_kind="record",
+            is_public=is_public,
+        )
 
     def _check_class_decl(self, stmt: ast.ClassDef, marker: tuple[str | None, bool]) -> None:
         conforms_to, is_public = marker
@@ -539,6 +606,15 @@ class SemanticChecker:
                 )
             )
 
+        self._record_symbol(
+            name=stmt.name,
+            qualified_name=stmt.name,
+            kind="class",
+            type_name=stmt.name,
+            location=(stmt.lineno, stmt.col_offset + 1),
+            parent_qname=None,
+            is_public=is_public,
+        )
         members: list[ClassMemberDecl] = []
         methods: dict[str, FunctionSignature] = {}
         setup_count = 0
@@ -564,14 +640,41 @@ class SemanticChecker:
                 seen_members.add(member.name)
                 members.append(member)
                 current_field_names.add(member.name)
+                self._record_symbol(
+                    name=member.name,
+                    qualified_name=f"{stmt.name}.{member.name}",
+                    kind="field",
+                    type_name=member.type_name,
+                    location=member.location,
+                    parent_qname=stmt.name,
+                    is_public=member.is_public,
+                )
                 continue
 
             if isinstance(member_stmt, ast.FunctionDef):
                 self._sync_pending_class_member_context(current_field_names, methods, members)
                 if member_stmt.name == SETUP_METHOD_NAME:
                     setup_count += 1
+                    self._record_symbol(
+                        name=SETUP_METHOD_NAME,
+                        qualified_name=f"{stmt.name}.{SETUP_METHOD_NAME}",
+                        kind="method",
+                        type_name="none",
+                        location=(member_stmt.lineno, member_stmt.col_offset + 1),
+                        parent_qname=stmt.name,
+                        is_public=False,
+                    )
                     self._check_setup_method(member_stmt, stmt.name)
                     continue
+                self._record_symbol(
+                    name=member_stmt.name,
+                    qualified_name=f"{stmt.name}.{member_stmt.name}",
+                    kind="method",
+                    type_name=None,
+                    location=(member_stmt.lineno, member_stmt.col_offset + 1),
+                    parent_qname=stmt.name,
+                    is_public=self._has_pub_decorator(member_stmt),
+                )
                 signature = self._check_class_method_decl(member_stmt, stmt.name)
                 if signature.name in methods:
                     raise SyntaxError(
@@ -616,7 +719,16 @@ class SemanticChecker:
             location=(stmt.lineno, stmt.col_offset),
         )
         self._class_decls[stmt.name] = class_decl
-        self._declare_name(stmt.name, "const", stmt.name, stmt.lineno, initialized=True)
+        self._declare_name(
+            stmt.name,
+            "const",
+            stmt.name,
+            stmt.lineno,
+            initialized=True,
+            location=(stmt.lineno, stmt.col_offset + 1),
+            symbol_kind="class",
+            is_public=is_public,
+        )
         self._check_class_conformance(class_decl, stmt.lineno)
 
     def _check_class_member_decl(self, member: ClassMemberDecl) -> None:
@@ -713,6 +825,8 @@ class SemanticChecker:
                 )
             )
 
+        previous_callable = self._current_callable_name
+        self._current_callable_name = f"{class_name}.setup"
         previous = self._begin_class_callable_scope(
             class_name=class_name,
             lineno=stmt.lineno,
@@ -724,6 +838,7 @@ class SemanticChecker:
         finally:
             self._throws_stack.pop()
             self._end_class_callable_scope(previous)
+            self._current_callable_name = previous_callable
 
     def _check_class_method_decl(self, stmt: ast.FunctionDef, class_name: str) -> FunctionSignature:
         self._ensure_supported_function_decorators(stmt)
@@ -769,8 +884,11 @@ class SemanticChecker:
             return_type=signature.return_type,
             throws=declared_throws,
             is_public=signature.is_public,
+            location=(stmt.lineno, stmt.col_offset + 1),
         )
 
+        previous_callable = self._current_callable_name
+        self._current_callable_name = f"{class_name}.{stmt.name}"
         previous = self._begin_class_callable_scope(
             class_name=class_name,
             lineno=stmt.lineno,
@@ -801,6 +919,7 @@ class SemanticChecker:
         finally:
             self._throws_stack.pop()
             self._end_class_callable_scope(previous)
+            self._current_callable_name = previous_callable
 
         return signature
 
@@ -838,7 +957,15 @@ class SemanticChecker:
         self._next_function_id += 1
         self._scopes.append(Scope(kind="function", function_id=function_id, symbols={}))
         self._return_type_stack.append(return_type)
-        self._declare_name("self", "const", class_name, lineno, initialized=True)
+        self._declare_name(
+            "self",
+            "const",
+            class_name,
+            lineno,
+            initialized=True,
+            location=(lineno, 1),
+            symbol_kind="parameter",
+        )
         return previous_class, previous_method_names, previous_field_names, previous_member_map
 
     def _end_class_callable_scope(
@@ -1007,9 +1134,21 @@ class SemanticChecker:
                     )
                 )
 
-            params.append(FunctionParam(name=arg.arg, type_name=type_name, has_default=has_default))
+            params.append(
+                FunctionParam(
+                    name=arg.arg,
+                    type_name=type_name,
+                    has_default=has_default,
+                    location=(arg.lineno, arg.col_offset + 1),
+                )
+            )
 
-        return FunctionSignature(name=stmt.name, params=params, return_type=return_type)
+        return FunctionSignature(
+            name=stmt.name,
+            params=params,
+            return_type=return_type,
+            location=(stmt.lineno, stmt.col_offset + 1),
+        )
 
     def _extract_method_signature(
         self, stmt: ast.FunctionDef, return_type: str, *, is_public: bool
@@ -1096,13 +1235,21 @@ class SemanticChecker:
                         "Move parameters without defaults before defaulted ones.",
                     )
                 )
-            params.append(FunctionParam(name=arg.arg, type_name=type_name, has_default=has_default))
+            params.append(
+                FunctionParam(
+                    name=arg.arg,
+                    type_name=type_name,
+                    has_default=has_default,
+                    location=(arg.lineno, arg.col_offset + 1),
+                )
+            )
 
         return FunctionSignature(
             name=stmt.name,
             params=params,
             return_type=return_type,
             is_public=is_public,
+            location=(stmt.lineno, stmt.col_offset + 1),
         )
 
     def _has_pub_decorator(self, stmt: ast.FunctionDef) -> bool:
@@ -1539,7 +1686,15 @@ class SemanticChecker:
                     "Use a single identifier loop variable.",
                 )
             )
-        self._declare_name(target.id, "var", None, lineno, initialized=True)
+        self._declare_name(
+            target.id,
+            "var",
+            None,
+            lineno,
+            initialized=True,
+            location=(target.lineno, target.col_offset + 1),
+            symbol_kind="variable",
+        )
         self._check_statements(body)
         self._with_block_scope(lambda: self._check_statements(orelse))
 
@@ -1560,6 +1715,7 @@ class SemanticChecker:
                 expr.lineno,
                 for_write=False,
                 require_initialized=True,
+                location=(expr.lineno, expr.col_offset + 1),
             )
             return symbol.type_name
 
@@ -1675,9 +1831,21 @@ class SemanticChecker:
             class_decl = self._class_decls.get(value_type or "")
             if class_decl is not None:
                 if expr.attr in class_decl.methods:
+                    self._record_reference(
+                        name=expr.attr,
+                        qualified_name=f"{class_decl.name}.{expr.attr}",
+                        location=self._attribute_location(expr),
+                        kind="read",
+                    )
                     return signature_to_function_type(class_decl.methods[expr.attr])
                 for member in class_decl.members:
                     if member.name == expr.attr:
+                        self._record_reference(
+                            name=expr.attr,
+                            qualified_name=f"{class_decl.name}.{expr.attr}",
+                            location=self._attribute_location(expr),
+                            kind="read",
+                        )
                         return member.type_name
             if (
                 isinstance(expr.value, ast.Name)
@@ -1695,6 +1863,12 @@ class SemanticChecker:
                     )
                 member = self._current_class_member_map.get(expr.attr)
                 if member is not None:
+                    self._record_reference(
+                        name=expr.attr,
+                        qualified_name=f"{self._current_class_name}.{expr.attr}",
+                        location=self._attribute_location(expr),
+                        kind="read",
+                    )
                     return member.type_name
             return value_type
 
@@ -1938,11 +2112,23 @@ class SemanticChecker:
 
             class_decl = self._class_decls.get(expr.func.id)
             if class_decl is not None:
+                self._record_reference(
+                    name=expr.func.id,
+                    qualified_name=expr.func.id,
+                    location=(expr.func.lineno, expr.func.col_offset + 1),
+                    kind="call",
+                )
                 result = self._check_class_constructor_call(expr, class_decl)
                 return result, set()
 
             signature = self._function_signatures.get(expr.func.id)
             if signature is not None:
+                self._record_reference(
+                    name=expr.func.id,
+                    qualified_name=expr.func.id,
+                    location=(expr.func.lineno, expr.func.col_offset + 1),
+                    kind="call",
+                )
                 if expr.args:
                     self._check_positional_call(expr, signature)
                 else:
@@ -1974,6 +2160,12 @@ class SemanticChecker:
             class_decl = self._class_decls.get(owner_type or "")
             signature = class_decl.methods.get(expr.func.attr) if class_decl else None
             if signature is not None:
+                self._record_reference(
+                    name=expr.func.attr,
+                    qualified_name=f"{class_decl.name}.{expr.func.attr}",
+                    location=self._attribute_location(expr.func),
+                    kind="call",
+                )
                 if expr.args:
                     self._check_positional_call(expr, signature)
                 else:
@@ -2235,6 +2427,12 @@ class SemanticChecker:
                     "Declare the record before constructing it.",
                 )
             )
+        self._record_reference(
+            name=type_node.value,
+            qualified_name=type_node.value,
+            location=(expr.lineno, expr.col_offset + 1),
+            kind="call",
+        )
 
         seen: set[str] = set()
         values_by_name: dict[str, ast.expr] = {}
@@ -2399,6 +2597,13 @@ class SemanticChecker:
                         f"Expected {member.type_name} but got {actual}.",
                     )
                 )
+        if self._current_class_name is not None:
+            self._record_reference(
+                name=attr,
+                qualified_name=f"{self._current_class_name}.{attr}",
+                location=(lineno, 1),
+                kind="write",
+            )
 
     def _require_numeric_pair(
         self, left: str | None, right: str | None, lineno: int, operator: str
@@ -2515,6 +2720,9 @@ class SemanticChecker:
             inferred_type,
             lineno,
             initialized=decl.has_initializer,
+            location=decl.location,
+            symbol_kind="constant" if decl.kind == "const" else "variable",
+            is_public=decl.is_public,
         )
 
     def _check_assignment_target(self, assignment: Assignment) -> None:
@@ -2523,6 +2731,7 @@ class SemanticChecker:
             assignment.location[0],
             for_write=True,
             require_initialized=False,
+            location=assignment.location,
         )
 
         current_function = self._current_function_id()
@@ -2568,6 +2777,10 @@ class SemanticChecker:
         type_name: str | None,
         lineno: int,
         initialized: bool,
+        *,
+        location: tuple[int, int] | None = None,
+        symbol_kind: str | None = None,
+        is_public: bool = False,
     ) -> None:
         scope = self._scopes[-1]
         if name in scope.symbols:
@@ -2588,16 +2801,33 @@ class SemanticChecker:
                         lineno,
                         f"shadowing is forbidden for name '{name}'",
                         "Rename the inner binding to avoid shadowing.",
-                    )
                 )
+            )
 
+        qualified_name = (
+            f"{self._current_callable_name}.{name}"
+            if self._current_callable_name is not None
+            else name
+        )
         scope.symbols[name] = Symbol(
             name=name,
+            qualified_name=qualified_name,
             kind=kind,
             type_name=type_name,
             lineno=lineno,
+            col_offset=(location[1] if location is not None else 1),
             function_id=self._current_function_id(),
             initialized=initialized,
+            is_public=is_public,
+        )
+        self._record_symbol(
+            name=name,
+            qualified_name=qualified_name,
+            kind=symbol_kind or kind,
+            type_name=type_name,
+            location=location or (lineno, 1),
+            parent_qname=self._current_callable_name,
+            is_public=is_public,
         )
 
     def _resolve_name(
@@ -2606,11 +2836,19 @@ class SemanticChecker:
         lineno: int,
         for_write: bool,
         require_initialized: bool,
+        *,
+        location: tuple[int, int] | None = None,
     ) -> Symbol:
         for scope in reversed(self._scopes):
             symbol = scope.symbols.get(name)
             if symbol is None:
                 continue
+            self._record_reference(
+                name=name,
+                qualified_name=symbol.qualified_name,
+                location=location or (lineno, 1),
+                kind="write" if for_write else "read",
+            )
             if require_initialized and not symbol.initialized:
                 raise SyntaxError(
                     err(
@@ -2828,6 +3066,79 @@ class SemanticChecker:
                 err("E2032", stmt.lineno, "enum name must be a string literal")
             )
         return enum_name.value
+
+    def _node_range(
+        self, node: ast.AST | ast.expr | ast.arg | ast.stmt, *, fallback_name: str | None = None
+    ) -> SourceRange:
+        start_line = getattr(node, "lineno", 1) or 1
+        start_col = getattr(node, "col_offset", 0) or 0
+        end_line = getattr(node, "end_lineno", start_line) or start_line
+        end_col = getattr(node, "end_col_offset", start_col + (len(fallback_name or "") or 1))
+        if end_line == start_line and end_col <= start_col:
+            end_col = start_col + max(1, len(fallback_name or ""))
+        return SourceRange(start=(start_line, start_col + 1), end=(end_line, end_col + 1))
+
+    def _attribute_location(self, expr: ast.Attribute) -> tuple[int, int]:
+        end_line = getattr(expr, "end_lineno", expr.lineno) or expr.lineno
+        end_col = getattr(expr, "end_col_offset", expr.col_offset + len(expr.attr)) or (
+            expr.col_offset + len(expr.attr)
+        )
+        return end_line, max(1, end_col - len(expr.attr) + 1)
+
+    def _record_symbol(
+        self,
+        *,
+        name: str,
+        qualified_name: str,
+        kind: str,
+        type_name: str | None,
+        location: tuple[int, int],
+        parent_qname: str | None,
+        is_public: bool,
+        detail: str | None = None,
+    ) -> None:
+        if qualified_name in self._analysis.symbols_by_qualified_name:
+            return
+        symbol = SemanticSymbol(
+            name=name,
+            qualified_name=qualified_name,
+            kind=kind,
+            detail=detail,
+            type_name=type_name,
+            location=SourceRange(start=location, end=(location[0], location[1] + max(1, len(name)))),
+            selection_range=SourceRange(
+                start=location, end=(location[0], location[1] + max(1, len(name)))
+            ),
+            is_public=is_public,
+            container_name=parent_qname,
+        )
+        self._analysis.symbols_by_qualified_name[qualified_name] = symbol
+        if parent_qname is None:
+            self._analysis.top_level_symbols.append(symbol)
+            if name not in self._analysis.symbols_by_name:
+                self._analysis.symbols_by_name[name] = symbol
+            return
+
+        parent = self._analysis.symbols_by_qualified_name.get(parent_qname)
+        if parent is not None:
+            parent.children.append(symbol)
+
+    def _record_reference(
+        self,
+        *,
+        name: str,
+        qualified_name: str,
+        location: tuple[int, int],
+        kind: str,
+    ) -> None:
+        reference = ReferenceSite(
+            name=name,
+            qualified_name=qualified_name,
+            location=SourceRange(start=location, end=(location[0], location[1] + max(1, len(name)))),
+            kind=kind,
+        )
+        self._analysis.references_by_qualified_name.setdefault(qualified_name, []).append(reference)
+        self._analysis.references_by_name.setdefault(name, []).append(reference)
 
     def _validate_type_name(self, type_name: str, lineno: int) -> None:
         for atom in iter_type_atoms(type_name, lineno):

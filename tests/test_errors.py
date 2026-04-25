@@ -2,6 +2,7 @@ import pytest
 
 from parser import parse_custom
 from parser.custom_frontend import parse_custom_source
+from parser.diagnostics import diagnostic_to_lsp, make_diagnostic
 from parser.semantics import check_semantics_with_prelude
 
 
@@ -25,6 +26,63 @@ def test_error_message_for_uninitialized_read_is_actionable() -> None:
     assert "[E2022]" in message
     assert "declared but not initialized" in message
     assert "Initialize it before reading" in message
+
+
+def test_diagnostic_to_lsp_supports_flat_related_information_and_fixes() -> None:
+    diagnostic = make_diagnostic(
+        code="E9999",
+        severity="error",
+        phase="parse",
+        message="example",
+        file="file:///tmp/example.ty",
+        line=3,
+        column=4,
+        related=[
+            {
+                "file": "file:///tmp/other.ty",
+                "range": {
+                    "start": {"line": 1, "character": 2},
+                    "end": {"line": 1, "character": 5},
+                },
+                "message": "related note",
+            }
+        ],
+        fixes=[
+            {
+                "title": "insert pass",
+                "edit": {
+                    "changes": {
+                        "file:///tmp/example.ty": [
+                            {
+                                "range": {
+                                    "start": {"line": 2, "character": 0},
+                                    "end": {"line": 2, "character": 0},
+                                },
+                                "newText": "pass\n",
+                            }
+                        ]
+                    }
+                },
+            }
+        ],
+    )
+
+    payload = diagnostic_to_lsp(diagnostic)
+
+    assert payload["code"] == "E9999"
+    assert payload["relatedInformation"] == [
+        {
+            "location": {
+                "uri": "file:///tmp/other.ty",
+                "range": {
+                    "start": {"line": 1, "character": 2},
+                    "end": {"line": 1, "character": 5},
+                },
+            },
+            "message": "related note",
+        }
+    ]
+    assert payload["data"]["fixes"]
 
 
 def test_prelude_keeps_inferred_type_across_snippets() -> None:

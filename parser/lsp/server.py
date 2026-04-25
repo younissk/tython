@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from parser import parse_custom
-from parser.diagnostics import diagnostic_from_exception
+from parser.diagnostics import diagnostic_from_exception, diagnostic_to_lsp, make_diagnostic
+from parser.formatter import format_source
+from parser.semantics import analyze_semantics
+from parser.semantics.models import SemanticAnalysis, SemanticSymbol
 
 
 JSONValue = dict[str, Any]
@@ -17,11 +20,12 @@ JSONValue = dict[str, Any]
 
 @dataclass
 class DocumentState:
+    uri: str
     text: str
     version: int
     last_parse: Any = None
+    last_analysis: SemanticAnalysis | None = None
     last_diagnostics: list[JSONValue] = field(default_factory=list)
-    symbols: dict[str, str] = field(default_factory=dict)
 
 
 class Logger:
@@ -87,6 +91,26 @@ class TythonLspServer:
                 self.logger.info("hover request")
                 return self._result(request_id, self._hover(params))
 
+            if method == "textDocument/definition":
+                self.logger.info("definition request")
+                return self._result(request_id, self._definition(params))
+
+            if method == "textDocument/references":
+                self.logger.info("references request")
+                return self._result(request_id, self._references(params))
+
+            if method == "textDocument/documentSymbol":
+                self.logger.info("document symbol request")
+                return self._result(request_id, self._document_symbol(params))
+
+            if method == "textDocument/codeAction":
+                self.logger.info("code action request")
+                return self._result(request_id, self._code_action(params))
+
+            if method == "textDocument/formatting":
+                self.logger.info("formatting request")
+                return self._result(request_id, self._formatting(params))
+
             return self._error(request_id, -32601, f"Method not found: {method}")
         except Exception as exc:  # pragma: no cover - safety boundary
             self.logger.error(f"request {method} failed: {exc}")
@@ -119,6 +143,11 @@ class TythonLspServer:
                     "change": 1,
                 },
                 "hoverProvider": True,
+                "definitionProvider": True,
+                "referencesProvider": True,
+                "documentSymbolProvider": True,
+                "codeActionProvider": True,
+                "documentFormattingProvider": True,
             },
             "serverInfo": {
                 "name": "tython-lsp",
@@ -140,7 +169,7 @@ class TythonLspServer:
         if not isinstance(version, int):
             version = 0
 
-        self.documents[uri] = DocumentState(text=text, version=version)
+        self.documents[uri] = DocumentState(uri=uri, text=text, version=version)
         self.logger.info(f"open {uri}")
         self._reparse_and_collect(uri)
 
@@ -181,19 +210,21 @@ class TythonLspServer:
 
     def _reparse_and_collect(self, uri: str) -> None:
         doc = self.documents[uri]
-        doc.symbols = extract_top_level_symbols(doc.text)
         try:
             doc.last_parse = parse_custom(doc.text)
+            doc.last_analysis = analyze_semantics(doc.last_parse)
             doc.last_diagnostics = []
             self.logger.info(f"parse success {uri}")
         except SyntaxError as exc:
             diagnostic = syntax_error_to_lsp_diagnostic(exc, uri=uri)
             doc.last_parse = None
+            doc.last_analysis = None
             doc.last_diagnostics = [diagnostic]
             self.logger.info(f"parse failure {uri}: {diagnostic['message']}")
         except Exception as exc:
             self.logger.error(f"parse crash {uri}: {exc}")
             doc.last_parse = None
+            doc.last_analysis = None
             doc.last_diagnostics = [
                 internal_diagnostic(
                     uri=uri, text=doc.text, message="Internal parser error. Check logs."
@@ -209,6 +240,7 @@ class TythonLspServer:
                     "method": "textDocument/publishDiagnostics",
                     "params": {
                         "uri": uri,
+                        "version": doc.version,
                         "diagnostics": doc.last_diagnostics,
                     },
                 }
@@ -224,39 +256,263 @@ class TythonLspServer:
             "method": "textDocument/publishDiagnostics",
             "params": {
                 "uri": uri,
+                "version": doc.version,
                 "diagnostics": doc.last_diagnostics,
             },
         }
 
     def _hover(self, params: Any) -> JSONValue | None:
+        symbol, _ = self._resolve_symbol_from_position(params)
+        if symbol is None:
+            return None
+        detail = symbol.detail or symbol.name
+        if symbol.type_name:
+            detail = f"`{symbol.name}` : `{symbol.type_name}`"
+        return {
+            "contents": {
+                "kind": "markdown",
+                "value": f"**{symbol.kind}**\n\n{detail}",
+            }
+        }
+
+    def _definition(self, params: Any) -> list[JSONValue] | None:
+        symbol, doc = self._resolve_symbol_from_position(params)
+        if symbol is None or doc is None:
+            return None
+        return [self._symbol_location_to_lsp_location(doc, symbol)]
+
+    def _references(self, params: Any) -> list[JSONValue] | None:
+        symbol, doc = self._resolve_symbol_from_position(params)
+        if symbol is None or doc is None or doc.last_analysis is None:
+            return None
+        include_declaration = True
+        context = params.get("context", {})
+        if isinstance(context, dict):
+            include_declaration = bool(context.get("includeDeclaration", True))
+
+        locations: list[JSONValue] = []
+        if include_declaration:
+            locations.append(self._symbol_location_to_lsp_location(doc, symbol))
+        for reference in self._references_for_symbol(doc.last_analysis, symbol.qualified_name):
+            locations.append(self._range_to_location(doc, reference.location))
+        return locations
+
+    def _document_symbol(self, params: Any) -> list[JSONValue] | None:
+        doc = self._document_from_params(params)
+        if doc is None or doc.last_analysis is None:
+            return None
+        return [self._semantic_symbol_to_document_symbol(doc, symbol) for symbol in doc.last_analysis.top_level_symbols]
+
+    def _code_action(self, params: Any) -> list[JSONValue] | None:
+        doc = self._document_from_params(params)
+        if doc is None:
+            return None
+        context = params.get("context", {})
+        diagnostics = context.get("diagnostics", []) if isinstance(context, dict) else []
+        if not diagnostics:
+            diagnostics = doc.last_diagnostics
+        if not isinstance(diagnostics, list):
+            diagnostics = []
+        actions: list[JSONValue] = []
+        for diagnostic in diagnostics:
+            if not isinstance(diagnostic, dict):
+                continue
+            action = self._code_action_for_diagnostic(doc, diagnostic)
+            if action is not None:
+                actions.append(action)
+        return actions
+
+    def _formatting(self, params: Any) -> list[JSONValue] | None:
+        doc = self._document_from_params(params)
+        if doc is None:
+            return None
+        formatted = format_source(doc.text)
+        if formatted == doc.text:
+            return []
+        return [
+            {
+                "range": self._full_document_range(doc.text),
+                "newText": formatted,
+            }
+        ]
+
+    def _resolve_symbol_from_position(self, params: Any) -> tuple[SemanticSymbol | None, DocumentState | None]:
         text_document = params.get("textDocument", {})
         position = params.get("position", {})
         uri = text_document.get("uri")
         if not isinstance(uri, str):
-            return None
-
+            return None, None
         doc = self.documents.get(uri)
-        if doc is None:
-            return None
+        if doc is None or doc.last_analysis is None:
+            return None, doc
+        line = int(position.get("line", 0))
+        character = int(position.get("character", 0))
+        symbol = self._symbol_at_position(doc.last_analysis, line, character)
+        if symbol is None:
+            return None, doc
+        return symbol, doc
 
-        try:
-            line = int(position.get("line", 0))
-            character = int(position.get("character", 0))
-            name = word_at_position(doc.text, line, character)
-            if name is None:
-                return None
-            value = doc.symbols.get(name)
-            if value is None:
-                return None
-            return {
-                "contents": {
-                    "kind": "markdown",
-                    "value": value,
-                }
-            }
-        except Exception as exc:
-            self.logger.error(f"hover crash {uri}: {exc}")
+    def _document_from_params(self, params: Any) -> DocumentState | None:
+        text_document = params.get("textDocument", {})
+        uri = text_document.get("uri")
+        if not isinstance(uri, str):
             return None
+        return self.documents.get(uri)
+
+    def _symbol_at_position(
+        self, analysis: SemanticAnalysis, line: int, character: int
+    ) -> SemanticSymbol | None:
+        for symbol in self._iter_symbols(analysis.top_level_symbols):
+            if self._range_contains(symbol.selection_range, line, character):
+                return symbol
+        for refs in analysis.references_by_qualified_name.values():
+            for reference in refs:
+                if self._range_contains(reference.location, line, character):
+                    return analysis.symbols_by_qualified_name.get(reference.qualified_name)
+        return None
+
+    def _references_for_symbol(
+        self, analysis: SemanticAnalysis, qualified_name: str
+    ) -> list[Any]:
+        return analysis.references_by_qualified_name.get(qualified_name, [])
+
+    def _iter_symbols(self, symbols: list[SemanticSymbol]) -> list[SemanticSymbol]:
+        flattened: list[SemanticSymbol] = []
+        for symbol in symbols:
+            flattened.append(symbol)
+            flattened.extend(self._iter_symbols(symbol.children))
+        return flattened
+
+    def _semantic_symbol_to_document_symbol(
+        self, doc: DocumentState, symbol: SemanticSymbol
+    ) -> JSONValue:
+        children = [
+            self._semantic_symbol_to_document_symbol(doc, child) for child in symbol.children
+        ]
+        return {
+            "name": symbol.name,
+            "kind": self._lsp_symbol_kind(symbol.kind),
+            "range": self._range_to_lsp_range(symbol.location),
+            "selectionRange": self._range_to_lsp_range(symbol.selection_range),
+            "detail": symbol.detail or symbol.type_name,
+            "children": children,
+        }
+
+    def _symbol_location_to_lsp_location(self, doc: DocumentState, symbol: SemanticSymbol) -> JSONValue:
+        return {
+            "uri": doc.uri,
+            "range": self._range_to_lsp_range(symbol.selection_range),
+        }
+
+    def _range_to_location(self, doc: DocumentState, source_range: Any) -> JSONValue:
+        return {
+            "uri": doc.uri,
+            "range": self._range_to_lsp_range(source_range),
+        }
+
+    def _range_to_lsp_range(self, source_range: Any) -> JSONValue:
+        return {
+            "start": {"line": max(0, source_range.start[0] - 1), "character": max(0, source_range.start[1] - 1)},
+            "end": {"line": max(0, source_range.end[0] - 1), "character": max(0, source_range.end[1] - 1)},
+        }
+
+    def _range_contains(self, source_range: Any, line: int, character: int) -> bool:
+        line1 = line + 1
+        char1 = character + 1
+        start_line, start_char = source_range.start
+        end_line, end_char = source_range.end
+        if line1 < start_line or line1 > end_line:
+            return False
+        if start_line == end_line:
+            return start_line == line1 and start_char <= char1 < end_char
+        if line1 == start_line:
+            return char1 >= start_char
+        if line1 == end_line:
+            return char1 < end_char
+        return True
+
+    def _lsp_symbol_kind(self, kind: str) -> int:
+        mapping = {
+            "module": 1,
+            "namespace": 3,
+            "class": 5,
+            "method": 6,
+            "field": 8,
+            "variable": 13,
+            "constant": 14,
+            "function": 12,
+            "parameter": 13,
+            "record": 5,
+            "enum": 10,
+        }
+        return mapping.get(kind, 13)
+
+    def _code_action_for_diagnostic(self, doc: DocumentState, diagnostic: JSONValue) -> JSONValue | None:
+        code = diagnostic.get("code")
+        if not isinstance(code, str):
+            return None
+        edits = self._diagnostic_fix_edits(doc.text, diagnostic)
+        if not edits:
+            return None
+        return {
+            "title": f"Fix {code}",
+            "kind": "quickfix",
+            "diagnostics": [diagnostic],
+            "edit": {
+                "changes": {
+                    doc.uri: edits,
+                }
+            },
+        }
+
+    def _diagnostic_fix_edits(self, text: str, diagnostic: JSONValue) -> list[JSONValue]:
+        code = diagnostic.get("code")
+        message = diagnostic.get("message", "")
+        if not isinstance(code, str) or not isinstance(message, str):
+            return []
+        if code == "E1016":
+            return self._insert_pass_for_empty_block(text, diagnostic)
+        if code == "E2069":
+            return [self._replace_range_from_diagnostic(diagnostic, "return none")]
+        return []
+
+    def _insert_pass_for_empty_block(self, text: str, diagnostic: JSONValue) -> list[JSONValue]:
+        lines = text.splitlines()
+        range_data = diagnostic.get("range")
+        if not isinstance(range_data, dict):
+            return []
+        start = range_data.get("start", {})
+        if not isinstance(start, dict):
+            return []
+        line = start.get("line")
+        if not isinstance(line, int) or line < 0 or line >= len(lines):
+            return []
+        indent_match = re.match(r"^\s*", lines[line])
+        indent = indent_match.group(0) if indent_match else ""
+        return [
+            {
+                "range": {
+                    "start": {"line": line, "character": 0},
+                    "end": {"line": line, "character": 0},
+                },
+                "newText": f"{indent}    pass\n",
+            }
+        ]
+
+    def _replace_range_from_diagnostic(self, diagnostic: JSONValue, new_text: str) -> JSONValue:
+        return {
+            "range": diagnostic.get("range"),
+            "newText": new_text,
+        }
+
+    def _full_document_range(self, text: str) -> JSONValue:
+        lines = text.splitlines() or [""]
+        last_line = len(lines) - 1
+        last_character = len(lines[-1])
+        return {
+            "start": {"line": 0, "character": 0},
+            "end": {"line": last_line, "character": last_character},
+        }
 
     @staticmethod
     def _result(request_id: Any, result: Any) -> JSONValue:
@@ -358,35 +614,24 @@ def syntax_error_to_lsp_diagnostic(error: SyntaxError, *, uri: str) -> JSONValue
         include_trace=False,
         default_phase="parse",
     )
-
-    start_line = max(0, converted.range.start[0] - 1)
-    start_char = max(0, converted.range.start[1] - 1)
-    end_line = max(start_line, converted.range.end[0] - 1)
-    end_char = max(start_char + 1, converted.range.end[1] - 1)
-
-    return {
-        "range": {
-            "start": {"line": start_line, "character": start_char},
-            "end": {"line": end_line, "character": end_char},
-        },
-        "severity": 1,
-        "source": "tython",
-        "message": converted.message,
-    }
+    return diagnostic_to_lsp(converted)
 
 
 def internal_diagnostic(*, uri: str, text: str, message: str) -> JSONValue:
-    _ = uri
     lines = text.splitlines() or [""]
-    return {
-        "range": {
-            "start": {"line": 0, "character": 0},
-            "end": {"line": 0, "character": max(1, len(lines[0]))},
-        },
-        "severity": 1,
-        "source": "tython",
-        "message": message,
-    }
+    diagnostic = make_diagnostic(
+        code="P0001",
+        severity="internal",
+        phase="panic",
+        message=message,
+        file=uri,
+        line=1,
+        column=1,
+        end_line=1,
+        end_column=max(1, len(lines[0])),
+        notes=["Internal parser crash"],
+    )
+    return diagnostic_to_lsp(diagnostic)
 
 
 class StdioTransport:

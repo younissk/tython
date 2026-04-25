@@ -1,4 +1,9 @@
-from .api import check_semantics, check_semantics_with_prelude
+from .api import analyze_semantics, check_semantics, check_semantics_with_prelude
 from .checker import SemanticChecker
 
-__all__ = ["SemanticChecker", "check_semantics", "check_semantics_with_prelude"]
+__all__ = [
+    "SemanticChecker",
+    "analyze_semantics",
+    "check_semantics",
+    "check_semantics_with_prelude",
+]

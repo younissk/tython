@@ -1,0 +1,11 @@
+record Animal {
+    name: str
+}
+
+func greet(name: str) -> str {
+    return "hi, " + name
+}
+
+var fish: Animal = Animal {
+    name: "Nemo"
+}

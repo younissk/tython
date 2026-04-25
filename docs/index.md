@@ -17,3 +17,5 @@ Tython is a strict, explicit language syntax that is designed to be easy to read
 ## Implementation Reference
 
 - [Parser Pipeline](./reference/parser-pipeline.md)
+- [Diagnostic Schema](./reference/diagnostic-schema.md)
+- [Error Code Catalog](./reference/error-codes.md)

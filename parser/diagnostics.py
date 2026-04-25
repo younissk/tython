@@ -14,6 +14,8 @@ LEGACY_ERROR_RE = re.compile(
     r"^\[(?P<code>[A-Z]\d{4})\] Line (?P<line>\d+): (?P<message>.*?)(?:\. Hint: (?P<hint>.*))?$"
 )
 
+DIAGNOSTIC_SCHEMA_VERSION = "1"
+
 
 @dataclass(frozen=True)
 class DiagnosticRange:
@@ -23,6 +25,7 @@ class DiagnosticRange:
 
 @dataclass(frozen=True)
 class Diagnostic:
+    schema_version: str
     code: str
     severity: str
     phase: str
@@ -43,11 +46,18 @@ class Diagnostic:
     module: str | None = None
 
 
-_ERRORS_DOC_URL = "file:///Users/youniss/Documents/GitHub/tython/docs/language/errors.md"
+_ERRORS_DOC_URL = (
+    "file:///Users/youniss/Documents/GitHub/tython/docs/language/errors.md"
+)
 
 
 def now_timestamp() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def make_diagnostic(
@@ -78,6 +88,7 @@ def make_diagnostic(
     end_line = max(line, end_line or line)
     end_column = max(column, end_column or column)
     return Diagnostic(
+        schema_version=DIAGNOSTIC_SCHEMA_VERSION,
         code=code,
         severity=severity,
         phase=phase,
@@ -106,6 +117,31 @@ def diagnostic_to_dict(diagnostic: Diagnostic) -> dict[str, Any]:
         "end": list(diagnostic.range.end),
     }
     return payload
+
+
+def diagnostic_to_llm_dict(diagnostic: Diagnostic) -> dict[str, Any]:
+    return {
+        "schema_version": diagnostic.schema_version,
+        "code": diagnostic.code,
+        "phase": diagnostic.phase,
+        "severity": diagnostic.severity,
+        "message": diagnostic.message,
+        "file": diagnostic.file,
+        "range": {
+            "start": list(diagnostic.range.start),
+            "end": list(diagnostic.range.end),
+        },
+        "expected": diagnostic.expected,
+        "found": diagnostic.found,
+        "notes": diagnostic.notes,
+        "help": diagnostic.help,
+        "related": diagnostic.related,
+        "fixes": diagnostic.fixes,
+        "recovery": diagnostic.recovery,
+        "symbol": diagnostic.symbol,
+        "command": diagnostic.command,
+        "module": diagnostic.module,
+    }
 
 
 def diagnostic_to_lsp(diagnostic: Diagnostic) -> dict[str, Any]:
@@ -225,7 +261,9 @@ def diagnostic_from_exception(
 ) -> Diagnostic:
     text = str(error)
     if isinstance(error, SyntaxError):
-        parsed = parse_legacy_error_message(text, file=file, phase=default_phase, severity="error")
+        parsed = parse_legacy_error_message(
+            text, file=file, phase=default_phase, severity="error"
+        )
         if parsed is not None:
             return parsed
         return make_diagnostic(
@@ -275,24 +313,13 @@ def render_diagnostic(
             f"{diagnostic.severity}[{diagnostic.code}] {location} {diagnostic.message}",
         ]
         if diagnostic.expected is not None or diagnostic.found is not None:
-            parts.append(
-                f"expected={diagnostic.expected!r} found={diagnostic.found!r}"
-            )
+            parts.append(f"expected={diagnostic.expected!r} found={diagnostic.found!r}")
         if diagnostic.help:
             parts.append(f"help: {diagnostic.help[0]}")
         return "\n".join(parts)
 
     if mode == "llm":
-        payload = {
-            "code": diagnostic.code,
-            "phase": diagnostic.phase,
-            "severity": diagnostic.severity,
-            "message": diagnostic.message,
-            "file": diagnostic.file,
-            "line": line,
-            "column": column,
-            "help": diagnostic.help,
-        }
+        payload = diagnostic_to_llm_dict(diagnostic)
         return (
             f"{diagnostic.severity}[{diagnostic.code}] {location} {diagnostic.message}\n"
             f"llm_fields: {json.dumps(payload, ensure_ascii=False)}"
@@ -312,7 +339,9 @@ def render_diagnostic(
     return "\n".join(parts)
 
 
-def persist_diagnostic_logs(diagnostic: Diagnostic, *, export_path: str | None = None) -> None:
+def persist_diagnostic_logs(
+    diagnostic: Diagnostic, *, export_path: str | None = None
+) -> None:
     payload = json.dumps(diagnostic_to_dict(diagnostic), ensure_ascii=False)
     root = Path(".project") / "errors"
     root.mkdir(parents=True, exist_ok=True)

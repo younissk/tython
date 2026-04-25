@@ -5,6 +5,8 @@ parser/cli.py
 parser/cli_typer.py
 parser/core.py
 parser/diagnostics.py
+parser/formatter.py
+parser/lint.py
 parser/lowering.py
 parser/project.py
 parser/project_build.py
@@ -32,9 +34,13 @@ parser/semantics/models.py
 parser/semantics/type_utils.py
 tests/test_cli_diagnostics.py
 tests/test_cli_typer.py
+tests/test_corpus_runner.py
 tests/test_differential.py
+tests/test_error_catalog.py
 tests/test_errors.py
+tests/test_formatter.py
 tests/test_golden.py
+tests/test_lint_cases.py
 tests/test_lowering.py
 tests/test_lsp.py
 tests/test_main_transpile.py

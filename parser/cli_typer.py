@@ -37,8 +37,12 @@ app = typer.Typer(
     add_completion=False,
     help="Minimal strict project-first CLI for Tython.",
 )
-lsp_app = typer.Typer(name="lsp", help="Language server commands.", add_completion=False)
-lsp_install_app = typer.Typer(name="install", help="Install LSP integrations.", add_completion=False)
+lsp_app = typer.Typer(
+    name="lsp", help="Language server commands.", add_completion=False
+)
+lsp_install_app = typer.Typer(
+    name="install", help="Install LSP integrations.", add_completion=False
+)
 app.add_typer(lsp_app)
 lsp_app.add_typer(lsp_install_app)
 _console = Console()
@@ -185,7 +189,9 @@ def _install_editor_package(pack_root: Path) -> Path:
 
 @app.callback()
 def root(
-    version_flag: bool = typer.Option(False, "--version", help="Show version and exit.", is_eager=True),
+    version_flag: bool = typer.Option(
+        False, "--version", help="Show version and exit.", is_eager=True
+    ),
 ) -> None:
     if version_flag:
         _console.print(f"tython {_resolve_version()}")
@@ -195,7 +201,9 @@ def root(
 @app.command(help="Initialize minimal Tython project in current directory.")
 def init(
     name: str = typer.Option("my_app", "--name", help="Project/package name."),
-    force: bool = typer.Option(False, "--force", help="Overwrite project.toml and src/main.ty if present."),
+    force: bool = typer.Option(
+        False, "--force", help="Overwrite project.toml and src/main.ty if present."
+    ),
 ) -> None:
     project_root = Path.cwd()
     src_dir = project_root / "src"
@@ -239,15 +247,22 @@ dependencies = [
 def add(
     spec: str = typer.Argument(..., help="Git URL or Python dependency spec."),
     py: bool = typer.Option(False, "--py", help="Treat spec as Python dependency."),
-    name: str | None = typer.Option(None, "--name", help="Explicit package name for native dependency."),
-    rev: str = typer.Option("", "--rev", help="Exact 40-char git commit SHA for native dependency."),
+    name: str | None = typer.Option(
+        None, "--name", help="Explicit package name for native dependency."
+    ),
+    rev: str = typer.Option(
+        "", "--rev", help="Exact 40-char git commit SHA for native dependency."
+    ),
 ) -> None:
     project_root = find_project_root(Path.cwd())
     manifest = load_manifest(project_root)
 
     if py:
         if not spec.strip():
-            _error("Python dependency spec cannot be empty", "Pass dependency like `requests>=2.32`.")
+            _error(
+                "Python dependency spec cannot be empty",
+                "Pass dependency like `requests>=2.32`.",
+            )
         if spec in manifest.python_dependencies:
             _console.print(f"[yellow]Exists[/yellow] python dependency {spec}")
             return
@@ -265,14 +280,21 @@ def add(
         return
 
     if not rev:
-        _error("Native package requires --rev", "Pass exact 40-char commit SHA with --rev.")
+        _error(
+            "Native package requires --rev", "Pass exact 40-char commit SHA with --rev."
+        )
 
     package_name = name or infer_package_name(spec)
     if package_name in manifest.packages:
-        _error(f"Package '{package_name}' already exists", "Use --name for a different alias.")
+        _error(
+            f"Package '{package_name}' already exists",
+            "Use --name for a different alias.",
+        )
 
     updated_packages = dict(manifest.packages)
-    updated_packages[package_name] = PackageSpec(name=package_name, git=spec, requested=rev)
+    updated_packages[package_name] = PackageSpec(
+        name=package_name, git=spec, requested=rev
+    )
     write_manifest(
         project_root,
         ProjectManifest(
@@ -353,8 +375,12 @@ def format(
 
 @app.command(help="Run .ty path in project context. Tasks removed in minimal mode.")
 def run(
-    target: str | None = typer.Argument(None, help=".ty path under src/ (defaults to [project].entry)"),
-    mode: ExecMode = typer.Option(ExecMode.exec, "--mode", help="Execution mode for path target."),
+    target: str | None = typer.Argument(
+        None, help=".ty path under src/ (defaults to [project].entry)"
+    ),
+    mode: ExecMode = typer.Option(
+        ExecMode.exec, "--mode", help="Execution mode for path target."
+    ),
 ) -> None:
     project_root = find_project_root(Path.cwd())
     manifest = load_manifest(project_root)
@@ -374,7 +400,10 @@ def run(
     if src_root not in path.parents and path != src_root:
         _error(f"Path target must live under src/: {path}", "Pass .ty path under src/.")
     if path.suffix != ".ty":
-        _error(f"Unsupported path extension: {path.suffix or '(none)'}", "Pass .ty path under src/.")
+        _error(
+            f"Unsupported path extension: {path.suffix or '(none)'}",
+            "Pass .ty path under src/.",
+        )
     if not path.exists():
         _error(f"Target file not found: {path}", "Pass existing .ty source path.")
 
@@ -398,8 +427,16 @@ def lsp_start() -> None:
 
 @lsp_install_app.command("vim", help="Install classic Vim support for Tython LSP.")
 def lsp_install_vim(
-    vim_pack_root: Path = typer.Option(Path.home() / ".vim" / "pack", "--vim-pack-root", help="Vim package root directory."),
-    install_lsp_plugin: bool = typer.Option(True, "--install-lsp-plugin/--no-install-lsp-plugin", help="Install yegappan/lsp if missing."),
+    vim_pack_root: Path = typer.Option(
+        Path.home() / ".vim" / "pack",
+        "--vim-pack-root",
+        help="Vim package root directory.",
+    ),
+    install_lsp_plugin: bool = typer.Option(
+        True,
+        "--install-lsp-plugin/--no-install-lsp-plugin",
+        help="Install yegappan/lsp if missing.",
+    ),
 ) -> None:
     tython_vim_root = _install_editor_package(vim_pack_root)
 
@@ -412,11 +449,18 @@ def lsp_install_vim(
         else:
             git_bin = shutil.which("git")
             if git_bin is None:
-                _console.print("[yellow]Skipped[/yellow] yegappan/lsp install (git not found).")
+                _console.print(
+                    "[yellow]Skipped[/yellow] yegappan/lsp install (git not found)."
+                )
             else:
                 lsp_root.parent.mkdir(parents=True, exist_ok=True)
                 completed = subprocess.run(
-                    [git_bin, "clone", "https://github.com/yegappan/lsp", str(lsp_root)],
+                    [
+                        git_bin,
+                        "clone",
+                        "https://github.com/yegappan/lsp",
+                        str(lsp_root),
+                    ],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -449,7 +493,10 @@ def _format_targets(project_root: Path, paths: list[Path]) -> list[Path]:
     if not paths:
         src_root = project_root / "src"
         if not src_root.exists():
-            _error("src/ directory missing", "Create src/ or pass explicit files to format.")
+            _error(
+                "src/ directory missing",
+                "Create src/ or pass explicit files to format.",
+            )
         return sorted(src_root.rglob("*.ty"))
 
     targets: list[Path] = []

@@ -108,7 +108,9 @@ def rewrite_record_literal_blocks(source: str) -> str:
 
         rendered = ", ".join(f"({k!r}, {v})" for k, v in fields)
         indent = line[: len(line) - len(line.lstrip(" \t"))]
-        out.append(f"{indent}{prefix}{RECORD_LITERAL_SENTINEL}({type_name!r}, [{rendered}])")
+        out.append(
+            f"{indent}{prefix}{RECORD_LITERAL_SENTINEL}({type_name!r}, [{rendered}])"
+        )
         i += 1
 
     return "\n".join(out) + "\n"
@@ -210,7 +212,9 @@ def rewrite_lowercase_literals(source: str) -> str:
             if tok.string == "true":
                 tok = tokenize.TokenInfo(tok.type, "True", tok.start, tok.end, tok.line)
             elif tok.string == "false":
-                tok = tokenize.TokenInfo(tok.type, "False", tok.start, tok.end, tok.line)
+                tok = tokenize.TokenInfo(
+                    tok.type, "False", tok.start, tok.end, tok.line
+                )
             elif tok.string == "none":
                 tok = tokenize.TokenInfo(tok.type, "None", tok.start, tok.end, tok.line)
         out_tokens.append(tok)
@@ -284,7 +288,7 @@ def rewrite_import_forms(source: str) -> str:
                     "E1028",
                     lineno,
                     "invalid import form",
-                    "Use one of: `import pkg/mod`, `import \"./file.ty\" as alias`, `pyimport module [as alias]`.",
+                    'Use one of: `import pkg/mod`, `import "./file.ty" as alias`, `pyimport module [as alias]`.',
                 )
             )
 

@@ -46,7 +46,9 @@ def rewrite_brace_and_functions(source: str) -> str:
         while leading.startswith("}"):
             level -= 1
             if level < 0:
-                raise SyntaxError(err("E1005", lineno, "unmatched '}'", "Remove extra closing brace."))
+                raise SyntaxError(
+                    err("E1005", lineno, "unmatched '}'", "Remove extra closing brace.")
+                )
             closed = stack.pop()
             if not closed.has_statement:
                 raise SyntaxError(
@@ -107,7 +109,10 @@ def rewrite_brace_and_functions(source: str) -> str:
             conformance = class_header.group("record")
             pub = class_header.group("pub") is not None
             output.append(("    " * level) + f"class {class_name}:")
-            output.append(("    " * (level + 1)) + f"{CLASS_MARKER_SENTINEL}({conformance!r}, {pub})")
+            output.append(
+                ("    " * (level + 1))
+                + f"{CLASS_MARKER_SENTINEL}({conformance!r}, {pub})"
+            )
             level += 1
             stack.append(BlockFrame(lineno=lineno, has_statement=True, kind="class"))
             continue
@@ -168,9 +173,13 @@ def rewrite_brace_and_functions(source: str) -> str:
             if opens_block and leading == "setup":
                 if stack:
                     stack[-1].has_statement = True
-                output.append(("    " * level) + f"def {SETUP_METHOD_NAME}(self) -> None:")
+                output.append(
+                    ("    " * level) + f"def {SETUP_METHOD_NAME}(self) -> None:"
+                )
                 level += 1
-                stack.append(BlockFrame(lineno=lineno, has_statement=False, kind="setup"))
+                stack.append(
+                    BlockFrame(lineno=lineno, has_statement=False, kind="setup")
+                )
                 continue
 
             member_line = rewrite_class_member_line(leading, lineno)
@@ -191,7 +200,9 @@ def rewrite_brace_and_functions(source: str) -> str:
                     stack[-1].has_statement = True
                 output.append(("    " * level) + f"@{PUB_DECORATOR_SENTINEL}")
                 if throws_types:
-                    output.append(("    " * level) + render_throws_decorator(throws_types))
+                    output.append(
+                        ("    " * level) + render_throws_decorator(throws_types)
+                    )
                 output.append(("    " * level) + def_header)
                 level += 1
                 stack.append(
@@ -258,7 +269,9 @@ def rewrite_brace_and_functions(source: str) -> str:
         if stack:
             stack[-1].has_statement = True
 
-        has_brace_syntax = "{" in stripped or "}" in stripped or stripped.startswith("func ")
+        has_brace_syntax = (
+            "{" in stripped or "}" in stripped or stripped.startswith("func ")
+        )
         if level == 0 and not has_brace_syntax:
             output.append(line)
         else:
@@ -270,7 +283,12 @@ def rewrite_brace_and_functions(source: str) -> str:
 
     if level != 0:
         raise SyntaxError(
-            err("E1007", len(lines) or 1, "unclosed '{' block", "Close every opened block with '}'.")
+            err(
+                "E1007",
+                len(lines) or 1,
+                "unclosed '{' block",
+                "Close every opened block with '}'.",
+            )
         )
 
     return "\n".join(output) + "\n"

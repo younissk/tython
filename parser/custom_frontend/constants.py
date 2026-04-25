@@ -61,4 +61,6 @@ RECORD_HEADER_RE = re.compile(
 CLASS_MEMBER_RE = re.compile(
     r"^(?:(?P<pub>pub)[ \t]+)?(?:(?P<init>init)[ \t]+)?(?P<kind>var|const)[ \t]+(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?:[ \t]*:[ \t]*(?P<type>[^=]+?))?(?:[ \t]*=[ \t]*(?P<expr>.+))?$"
 )
-RECORD_FIELD_RE = re.compile(r"^(?P<name>[A-Za-z_][A-Za-z0-9_]*)[ \t]*:[ \t]*(?P<type>.+)$")
+RECORD_FIELD_RE = re.compile(
+    r"^(?P<name>[A-Za-z_][A-Za-z0-9_]*)[ \t]*:[ \t]*(?P<type>.+)$"
+)

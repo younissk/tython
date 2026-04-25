@@ -53,7 +53,14 @@ def parse_prefix_ternary(text: str, start: int, lineno: int) -> tuple[str, int]:
 
     cond_end = find_top_level_colon(text, cond_start)
     if cond_end is None:
-        raise SyntaxError(err("E1017", lineno, "invalid ternary syntax", "Use `if cond: expr else expr`."))
+        raise SyntaxError(
+            err(
+                "E1017",
+                lineno,
+                "invalid ternary syntax",
+                "Use `if cond: expr else expr`.",
+            )
+        )
 
     true_start = cond_end + 1
     while true_start < len(text) and text[true_start].isspace():
@@ -61,7 +68,14 @@ def parse_prefix_ternary(text: str, start: int, lineno: int) -> tuple[str, int]:
 
     else_start = find_top_level_else(text, true_start)
     if else_start is None:
-        raise SyntaxError(err("E1017", lineno, "invalid ternary syntax", "Use `if cond: expr else expr`."))
+        raise SyntaxError(
+            err(
+                "E1017",
+                lineno,
+                "invalid ternary syntax",
+                "Use `if cond: expr else expr`.",
+            )
+        )
 
     false_start = else_start + 4
     while false_start < len(text) and text[false_start].isspace():
@@ -73,7 +87,14 @@ def parse_prefix_ternary(text: str, start: int, lineno: int) -> tuple[str, int]:
     true_expr = text[true_start:else_start].strip()
     false_expr = text[false_start:false_end].strip()
     if not cond or not true_expr or not false_expr:
-        raise SyntaxError(err("E1017", lineno, "invalid ternary syntax", "Use `if cond: expr else expr`."))
+        raise SyntaxError(
+            err(
+                "E1017",
+                lineno,
+                "invalid ternary syntax",
+                "Use `if cond: expr else expr`.",
+            )
+        )
 
     return f"({true_expr} if {cond} else {false_expr})", false_end
 

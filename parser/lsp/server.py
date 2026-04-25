@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from parser import parse_custom
-from parser.diagnostics import diagnostic_from_exception, diagnostic_to_lsp, make_diagnostic
+from parser.diagnostics import (
+    diagnostic_from_exception,
+    diagnostic_to_lsp,
+    make_diagnostic,
+)
 from parser.formatter import format_source
 from parser.semantics import analyze_semantics
 from parser.semantics.models import SemanticAnalysis, SemanticSymbol
@@ -293,7 +297,9 @@ class TythonLspServer:
         locations: list[JSONValue] = []
         if include_declaration:
             locations.append(self._symbol_location_to_lsp_location(doc, symbol))
-        for reference in self._references_for_symbol(doc.last_analysis, symbol.qualified_name):
+        for reference in self._references_for_symbol(
+            doc.last_analysis, symbol.qualified_name
+        ):
             locations.append(self._range_to_location(doc, reference.location))
         return locations
 
@@ -301,14 +307,19 @@ class TythonLspServer:
         doc = self._document_from_params(params)
         if doc is None or doc.last_analysis is None:
             return None
-        return [self._semantic_symbol_to_document_symbol(doc, symbol) for symbol in doc.last_analysis.top_level_symbols]
+        return [
+            self._semantic_symbol_to_document_symbol(doc, symbol)
+            for symbol in doc.last_analysis.top_level_symbols
+        ]
 
     def _code_action(self, params: Any) -> list[JSONValue] | None:
         doc = self._document_from_params(params)
         if doc is None:
             return None
         context = params.get("context", {})
-        diagnostics = context.get("diagnostics", []) if isinstance(context, dict) else []
+        diagnostics = (
+            context.get("diagnostics", []) if isinstance(context, dict) else []
+        )
         if not diagnostics:
             diagnostics = doc.last_diagnostics
         if not isinstance(diagnostics, list):
@@ -336,7 +347,9 @@ class TythonLspServer:
             }
         ]
 
-    def _resolve_symbol_from_position(self, params: Any) -> tuple[SemanticSymbol | None, DocumentState | None]:
+    def _resolve_symbol_from_position(
+        self, params: Any
+    ) -> tuple[SemanticSymbol | None, DocumentState | None]:
         text_document = params.get("textDocument", {})
         position = params.get("position", {})
         uri = text_document.get("uri")
@@ -368,7 +381,9 @@ class TythonLspServer:
         for refs in analysis.references_by_qualified_name.values():
             for reference in refs:
                 if self._range_contains(reference.location, line, character):
-                    return analysis.symbols_by_qualified_name.get(reference.qualified_name)
+                    return analysis.symbols_by_qualified_name.get(
+                        reference.qualified_name
+                    )
         return None
 
     def _references_for_symbol(
@@ -387,7 +402,8 @@ class TythonLspServer:
         self, doc: DocumentState, symbol: SemanticSymbol
     ) -> JSONValue:
         children = [
-            self._semantic_symbol_to_document_symbol(doc, child) for child in symbol.children
+            self._semantic_symbol_to_document_symbol(doc, child)
+            for child in symbol.children
         ]
         return {
             "name": symbol.name,
@@ -398,7 +414,9 @@ class TythonLspServer:
             "children": children,
         }
 
-    def _symbol_location_to_lsp_location(self, doc: DocumentState, symbol: SemanticSymbol) -> JSONValue:
+    def _symbol_location_to_lsp_location(
+        self, doc: DocumentState, symbol: SemanticSymbol
+    ) -> JSONValue:
         return {
             "uri": doc.uri,
             "range": self._range_to_lsp_range(symbol.selection_range),
@@ -412,8 +430,14 @@ class TythonLspServer:
 
     def _range_to_lsp_range(self, source_range: Any) -> JSONValue:
         return {
-            "start": {"line": max(0, source_range.start[0] - 1), "character": max(0, source_range.start[1] - 1)},
-            "end": {"line": max(0, source_range.end[0] - 1), "character": max(0, source_range.end[1] - 1)},
+            "start": {
+                "line": max(0, source_range.start[0] - 1),
+                "character": max(0, source_range.start[1] - 1),
+            },
+            "end": {
+                "line": max(0, source_range.end[0] - 1),
+                "character": max(0, source_range.end[1] - 1),
+            },
         }
 
     def _range_contains(self, source_range: Any, line: int, character: int) -> bool:
@@ -447,7 +471,9 @@ class TythonLspServer:
         }
         return mapping.get(kind, 13)
 
-    def _code_action_for_diagnostic(self, doc: DocumentState, diagnostic: JSONValue) -> JSONValue | None:
+    def _code_action_for_diagnostic(
+        self, doc: DocumentState, diagnostic: JSONValue
+    ) -> JSONValue | None:
         code = diagnostic.get("code")
         if not isinstance(code, str):
             return None
@@ -465,7 +491,9 @@ class TythonLspServer:
             },
         }
 
-    def _diagnostic_fix_edits(self, text: str, diagnostic: JSONValue) -> list[JSONValue]:
+    def _diagnostic_fix_edits(
+        self, text: str, diagnostic: JSONValue
+    ) -> list[JSONValue]:
         code = diagnostic.get("code")
         message = diagnostic.get("message", "")
         if not isinstance(code, str) or not isinstance(message, str):
@@ -476,7 +504,9 @@ class TythonLspServer:
             return [self._replace_range_from_diagnostic(diagnostic, "return none")]
         return []
 
-    def _insert_pass_for_empty_block(self, text: str, diagnostic: JSONValue) -> list[JSONValue]:
+    def _insert_pass_for_empty_block(
+        self, text: str, diagnostic: JSONValue
+    ) -> list[JSONValue]:
         lines = text.splitlines()
         range_data = diagnostic.get("range")
         if not isinstance(range_data, dict):
@@ -499,7 +529,9 @@ class TythonLspServer:
             }
         ]
 
-    def _replace_range_from_diagnostic(self, diagnostic: JSONValue, new_text: str) -> JSONValue:
+    def _replace_range_from_diagnostic(
+        self, diagnostic: JSONValue, new_text: str
+    ) -> JSONValue:
         return {
             "range": diagnostic.get("range"),
             "newText": new_text,

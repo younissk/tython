@@ -55,7 +55,9 @@ def extract_int_literal(expr: ast.expr) -> int | None:
     if isinstance(expr, ast.Constant) and isinstance(expr.value, int):
         return expr.value
     if isinstance(expr, ast.UnaryOp) and isinstance(expr.op, ast.USub):
-        if isinstance(expr.operand, ast.Constant) and isinstance(expr.operand.value, int):
+        if isinstance(expr.operand, ast.Constant) and isinstance(
+            expr.operand.value, int
+        ):
             return -expr.operand.value
     return None
 

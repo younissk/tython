@@ -1,0 +1,4 @@
+const MAX_USERS: int = 100
+var names: str[] = ["a", "b"]
+var count = 0
+count = count + 1

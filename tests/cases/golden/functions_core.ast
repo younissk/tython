@@ -9,7 +9,7 @@ Module(
             annotation=Name(id='int', ctx=Load())),
           arg(
             arg='b',
-            annotation=Name(id='int', ctx=Load()))]),
+            annotation=Name(id='int', ctx=Load()))],
       body=[
         Return(
           value=BinOp(
@@ -53,4 +53,5 @@ Module(
                 arg='name',
                 value=Constant(value='Youniss'))]),
           Constant(value=True),
-          Constant(value=False)]))])
+          Constant(value=False)],
+        keywords=[]))],

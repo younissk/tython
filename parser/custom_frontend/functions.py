@@ -21,7 +21,9 @@ def rewrite_func_block_decl(
 def rewrite_func_expression_decl(
     leading: str, lineno: int, is_method: bool = False
 ) -> tuple[str, str, list[str]]:
-    signature_text, expr_body = split_once_top_level(leading.removeprefix("func ").strip(), "=")
+    signature_text, expr_body = split_once_top_level(
+        leading.removeprefix("func ").strip(), "="
+    )
     if signature_text is None or expr_body is None:
         raise SyntaxError(
             err(
@@ -31,7 +33,9 @@ def rewrite_func_expression_decl(
                 "Use `func name(params) -> Type = expression`.",
             )
         )
-    name, params, return_type, throws_types = parse_func_signature(signature_text.strip(), lineno)
+    name, params, return_type, throws_types = parse_func_signature(
+        signature_text.strip(), lineno
+    )
     rendered_params = ", ".join(render_param(param, lineno) for param in params)
     if is_method:
         rendered_params = f"self, {rendered_params}" if rendered_params else "self"

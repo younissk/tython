@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from .constants import BINDING_NO_INIT_RE, BINDING_RE, BINDING_SENTINEL, ENUM_HEADER_RE, ENUM_SENTINEL, IDENTIFIER_RE
+from .constants import (
+    BINDING_NO_INIT_RE,
+    BINDING_RE,
+    BINDING_SENTINEL,
+    ENUM_HEADER_RE,
+    ENUM_SENTINEL,
+    IDENTIFIER_RE,
+)
 from .errors import err
 from .type_system import normalize_type_expr
 
@@ -27,7 +34,9 @@ def rewrite_enum_blocks(source: str) -> str:
             current = lines[i]
             stripped = current.strip()
             current_no_nl = current.rstrip("\r\n")
-            current_indent = current_no_nl[: len(current_no_nl) - len(current_no_nl.lstrip(" \t"))]
+            current_indent = current_no_nl[
+                : len(current_no_nl) - len(current_no_nl.lstrip(" \t"))
+            ]
 
             if stripped == "":
                 i += 1

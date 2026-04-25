@@ -594,7 +594,9 @@ class SemanticChecker:
             is_public=is_public,
         )
 
-    def _check_class_decl(self, stmt: ast.ClassDef, marker: tuple[str | None, bool]) -> None:
+    def _check_class_decl(
+        self, stmt: ast.ClassDef, marker: tuple[str | None, bool]
+    ) -> None:
         conforms_to, is_public = marker
         if conforms_to is not None and "," in conforms_to:
             raise SyntaxError(
@@ -652,7 +654,9 @@ class SemanticChecker:
                 continue
 
             if isinstance(member_stmt, ast.FunctionDef):
-                self._sync_pending_class_member_context(current_field_names, methods, members)
+                self._sync_pending_class_member_context(
+                    current_field_names, methods, members
+                )
                 if member_stmt.name == SETUP_METHOD_NAME:
                     setup_count += 1
                     self._record_symbol(
@@ -840,7 +844,9 @@ class SemanticChecker:
             self._end_class_callable_scope(previous)
             self._current_callable_name = previous_callable
 
-    def _check_class_method_decl(self, stmt: ast.FunctionDef, class_name: str) -> FunctionSignature:
+    def _check_class_method_decl(
+        self, stmt: ast.FunctionDef, class_name: str
+    ) -> FunctionSignature:
         self._ensure_supported_function_decorators(stmt)
         is_public = self._has_pub_decorator(stmt)
 
@@ -865,7 +871,9 @@ class SemanticChecker:
 
         return_type = annotation_to_custom_type(stmt.returns)
         self._validate_type_name(return_type, stmt.lineno)
-        signature = self._extract_method_signature(stmt, return_type, is_public=is_public)
+        signature = self._extract_method_signature(
+            stmt, return_type, is_public=is_public
+        )
         declared_throws = self._extract_declared_throws(stmt)
         for thrown_type in declared_throws:
             self._validate_type_name(thrown_type, stmt.lineno)
@@ -966,12 +974,23 @@ class SemanticChecker:
             location=(lineno, 1),
             symbol_kind="parameter",
         )
-        return previous_class, previous_method_names, previous_field_names, previous_member_map
+        return (
+            previous_class,
+            previous_method_names,
+            previous_field_names,
+            previous_member_map,
+        )
 
     def _end_class_callable_scope(
-        self, previous: tuple[str | None, set[str], set[str], dict[str, ClassMemberDecl]]
+        self,
+        previous: tuple[str | None, set[str], set[str], dict[str, ClassMemberDecl]],
     ) -> None:
-        previous_class, previous_method_names, previous_field_names, previous_member_map = previous
+        (
+            previous_class,
+            previous_method_names,
+            previous_field_names,
+            previous_member_map,
+        ) = previous
         self._return_type_stack.pop()
         self._scopes.pop()
         self._current_class_name = previous_class
@@ -1008,7 +1027,9 @@ class SemanticChecker:
                                 "Mark method as `pub func`.",
                             )
                         )
-                    if not function_type_matches_signature(field.type_name, method, lineno):
+                    if not function_type_matches_signature(
+                        field.type_name, method, lineno
+                    ):
                         raise SyntaxError(
                             err(
                                 "E2124",
@@ -1154,7 +1175,12 @@ class SemanticChecker:
         self, stmt: ast.FunctionDef, return_type: str, *, is_public: bool
     ) -> FunctionSignature:
         args = stmt.args
-        if args.posonlyargs or args.vararg is not None or args.kwarg is not None or args.kwonlyargs:
+        if (
+            args.posonlyargs
+            or args.vararg is not None
+            or args.kwarg is not None
+            or args.kwonlyargs
+        ):
             raise SyntaxError(
                 err(
                     "E2129",
@@ -1260,7 +1286,10 @@ class SemanticChecker:
 
     def _ensure_supported_function_decorators(self, stmt: ast.FunctionDef) -> None:
         for decorator in stmt.decorator_list:
-            if isinstance(decorator, ast.Name) and decorator.id == PUB_DECORATOR_SENTINEL:
+            if (
+                isinstance(decorator, ast.Name)
+                and decorator.id == PUB_DECORATOR_SENTINEL
+            ):
                 continue
             if (
                 isinstance(decorator, ast.Call)
@@ -1350,11 +1379,15 @@ class SemanticChecker:
                 raise SyntaxError(err("E2137", stmt.lineno, "invalid record marker"))
             arg = call.args[0]
             if not isinstance(arg, ast.Constant) or not isinstance(arg.value, bool):
-                raise SyntaxError(err("E2138", stmt.lineno, "invalid record visibility marker"))
+                raise SyntaxError(
+                    err("E2138", stmt.lineno, "invalid record visibility marker")
+                )
             return arg.value
         return None
 
-    def _extract_class_marker(self, stmt: ast.ClassDef) -> tuple[str | None, bool] | None:
+    def _extract_class_marker(
+        self, stmt: ast.ClassDef
+    ) -> tuple[str | None, bool] | None:
         for member in stmt.body:
             if not self._is_class_marker_stmt(member):
                 continue
@@ -1366,9 +1399,15 @@ class SemanticChecker:
             if not isinstance(conformance, ast.Constant) or (
                 conformance.value is not None and not isinstance(conformance.value, str)
             ):
-                raise SyntaxError(err("E2140", stmt.lineno, "invalid class conformance marker"))
-            if not isinstance(is_public, ast.Constant) or not isinstance(is_public.value, bool):
-                raise SyntaxError(err("E2141", stmt.lineno, "invalid class visibility marker"))
+                raise SyntaxError(
+                    err("E2140", stmt.lineno, "invalid class conformance marker")
+                )
+            if not isinstance(is_public, ast.Constant) or not isinstance(
+                is_public.value, bool
+            ):
+                raise SyntaxError(
+                    err("E2141", stmt.lineno, "invalid class visibility marker")
+                )
             return conformance.value, is_public.value
         return None
 
@@ -1394,21 +1433,43 @@ class SemanticChecker:
             )
         kind, name, type_name, initializer, has_init, is_public, in_class = call.args
         if not isinstance(kind, ast.Constant) or not isinstance(kind.value, str):
-            raise SyntaxError(err("E2143", stmt.lineno, "class member kind must be string"))
+            raise SyntaxError(
+                err("E2143", stmt.lineno, "class member kind must be string")
+            )
         if not isinstance(name, ast.Constant) or not isinstance(name.value, str):
-            raise SyntaxError(err("E2144", stmt.lineno, "class member name must be string"))
+            raise SyntaxError(
+                err("E2144", stmt.lineno, "class member name must be string")
+            )
         if not isinstance(type_name, ast.Constant) or (
             type_name.value is not None and not isinstance(type_name.value, str)
         ):
-            raise SyntaxError(err("E2145", stmt.lineno, "class member type must be string/none"))
-        if not isinstance(has_init, ast.Constant) or not isinstance(has_init.value, bool):
-            raise SyntaxError(err("E2146", stmt.lineno, "class member initializer flag must be bool"))
-        if not isinstance(is_public, ast.Constant) or not isinstance(is_public.value, bool):
-            raise SyntaxError(err("E2147", stmt.lineno, "class member public flag must be bool"))
-        if not isinstance(in_class, ast.Constant) or not isinstance(in_class.value, bool):
-            raise SyntaxError(err("E2148", stmt.lineno, "class member class-context flag must be bool"))
+            raise SyntaxError(
+                err("E2145", stmt.lineno, "class member type must be string/none")
+            )
+        if not isinstance(has_init, ast.Constant) or not isinstance(
+            has_init.value, bool
+        ):
+            raise SyntaxError(
+                err("E2146", stmt.lineno, "class member initializer flag must be bool")
+            )
+        if not isinstance(is_public, ast.Constant) or not isinstance(
+            is_public.value, bool
+        ):
+            raise SyntaxError(
+                err("E2147", stmt.lineno, "class member public flag must be bool")
+            )
+        if not isinstance(in_class, ast.Constant) or not isinstance(
+            in_class.value, bool
+        ):
+            raise SyntaxError(
+                err(
+                    "E2148", stmt.lineno, "class member class-context flag must be bool"
+                )
+            )
         if not in_class.value:
-            raise SyntaxError(err("E2149", stmt.lineno, "class member declaration used outside class"))
+            raise SyntaxError(
+                err("E2149", stmt.lineno, "class member declaration used outside class")
+            )
         return ClassMemberDecl(
             kind=kind.value,
             name=name.value,
@@ -1490,7 +1551,9 @@ class SemanticChecker:
                 handled_types.add(bound_type)
             bound_types.append(bound_type)
 
-        self._try_context_stack.append(TryContext(handled_types=handled_types, catch_all=catch_all))
+        self._try_context_stack.append(
+            TryContext(handled_types=handled_types, catch_all=catch_all)
+        )
         try:
             self._with_block_scope(lambda: self._check_statements(stmt.body))
         finally:
@@ -1498,8 +1561,8 @@ class SemanticChecker:
 
         for handler, bound_type in zip(stmt.handlers, bound_types):
             self._with_block_scope(
-                lambda handler=handler, bound_type=bound_type: self._check_except_handler_body(
-                    handler, bound_type
+                lambda handler=handler, bound_type=bound_type: (
+                    self._check_except_handler_body(handler, bound_type)
                 )
             )
 
@@ -1555,7 +1618,9 @@ class SemanticChecker:
             )
         return catch_type.id, False
 
-    def _check_except_handler_body(self, handler: ast.ExceptHandler, bound_type: str) -> None:
+    def _check_except_handler_body(
+        self, handler: ast.ExceptHandler, bound_type: str
+    ) -> None:
         if handler.name:
             self._declare_name(
                 handler.name,
@@ -1653,16 +1718,16 @@ class SemanticChecker:
         if isinstance(stmt, ast.If):
             if not stmt.orelse:
                 return False
-            return self._block_guarantees_return(stmt.body) and self._block_guarantees_return(
-                stmt.orelse
-            )
+            return self._block_guarantees_return(
+                stmt.body
+            ) and self._block_guarantees_return(stmt.orelse)
         if isinstance(stmt, ast.Try):
             if stmt.finalbody and self._block_guarantees_return(stmt.finalbody):
                 return True
             normal_path_returns = self._block_guarantees_return(stmt.body)
             if stmt.orelse:
-                normal_path_returns = normal_path_returns or self._block_guarantees_return(
-                    stmt.orelse
+                normal_path_returns = (
+                    normal_path_returns or self._block_guarantees_return(stmt.orelse)
                 )
             handlers_return = bool(stmt.handlers) and all(
                 self._block_guarantees_return(handler.body) for handler in stmt.handlers
@@ -1852,7 +1917,10 @@ class SemanticChecker:
                 and expr.value.id == "self"
                 and self._current_class_name is not None
             ):
-                if expr.attr not in self._class_field_names and expr.attr not in self._class_method_names:
+                if (
+                    expr.attr not in self._class_field_names
+                    and expr.attr not in self._class_method_names
+                ):
                     raise SyntaxError(
                         err(
                             "E2150",
@@ -2062,7 +2130,7 @@ class SemanticChecker:
                         "E2186",
                         expr.lineno,
                         "panic expects exactly one argument",
-                        "Use `panic(\"message\")`.",
+                        'Use `panic("message")`.',
                     )
                 )
             self._check_expression(expr.args[0])
@@ -2070,7 +2138,10 @@ class SemanticChecker:
 
         self._check_expression(expr.func)
 
-        if isinstance(expr.func, ast.Attribute) and expr.func.attr in {"setup", SETUP_METHOD_NAME}:
+        if isinstance(expr.func, ast.Attribute) and expr.func.attr in {
+            "setup",
+            SETUP_METHOD_NAME,
+        }:
             raise SyntaxError(
                 err(
                     "E2151",
@@ -2223,7 +2294,9 @@ class SemanticChecker:
                 )
             )
 
-        result_type, thrown = self._infer_call_result(call_expr, enforce_checked_throws=False)
+        result_type, thrown = self._infer_call_result(
+            call_expr, enforce_checked_throws=False
+        )
         if not thrown:
             raise SyntaxError(
                 err(
@@ -2247,7 +2320,9 @@ class SemanticChecker:
             )
         return result_type, thrown
 
-    def _check_positional_call(self, expr: ast.Call, signature: FunctionSignature) -> None:
+    def _check_positional_call(
+        self, expr: ast.Call, signature: FunctionSignature
+    ) -> None:
         params = signature.params
         required = sum(1 for p in params if not p.has_default)
 
@@ -2334,7 +2409,9 @@ class SemanticChecker:
                     )
                 )
 
-        missing = [p.name for p in signature.params if not p.has_default and p.name not in seen]
+        missing = [
+            p.name for p in signature.params if not p.has_default and p.name not in seen
+        ]
         if missing:
             raise SyntaxError(
                 err(
@@ -2412,10 +2489,16 @@ class SemanticChecker:
                 )
             )
         type_node, fields_node = expr.args
-        if not isinstance(type_node, ast.Constant) or not isinstance(type_node.value, str):
-            raise SyntaxError(err("E2154", expr.lineno, "record literal type must be a string"))
+        if not isinstance(type_node, ast.Constant) or not isinstance(
+            type_node.value, str
+        ):
+            raise SyntaxError(
+                err("E2154", expr.lineno, "record literal type must be a string")
+            )
         if not isinstance(fields_node, ast.List):
-            raise SyntaxError(err("E2155", expr.lineno, "record literal fields must be a list"))
+            raise SyntaxError(
+                err("E2155", expr.lineno, "record literal fields must be a list")
+            )
 
         record_decl = self._record_decls.get(type_node.value)
         if record_decl is None:
@@ -2438,10 +2521,16 @@ class SemanticChecker:
         values_by_name: dict[str, ast.expr] = {}
         for element in fields_node.elts:
             if not isinstance(element, ast.Tuple) or len(element.elts) != 2:
-                raise SyntaxError(err("E2157", expr.lineno, "invalid record field entry"))
+                raise SyntaxError(
+                    err("E2157", expr.lineno, "invalid record field entry")
+                )
             key_node, value_node = element.elts
-            if not isinstance(key_node, ast.Constant) or not isinstance(key_node.value, str):
-                raise SyntaxError(err("E2158", expr.lineno, "record field name must be string"))
+            if not isinstance(key_node, ast.Constant) or not isinstance(
+                key_node.value, str
+            ):
+                raise SyntaxError(
+                    err("E2158", expr.lineno, "record field name must be string")
+                )
             field_name = key_node.value
             if field_name in seen:
                 raise SyntaxError(
@@ -2488,7 +2577,9 @@ class SemanticChecker:
                 )
         return record_decl.name
 
-    def _check_class_constructor_call(self, expr: ast.Call, class_decl: ClassDecl) -> str:
+    def _check_class_constructor_call(
+        self, expr: ast.Call, class_decl: ClassDecl
+    ) -> str:
         if expr.args:
             raise SyntaxError(
                 err(
@@ -2499,7 +2590,9 @@ class SemanticChecker:
                 )
             )
 
-        init_members = [m for m in class_decl.members if m.kind in {"init_var", "init_const"}]
+        init_members = [
+            m for m in class_decl.members if m.kind in {"init_var", "init_const"}
+        ]
         by_name = {member.name: member for member in init_members}
         seen: set[str] = set()
         for keyword in expr.keywords:
@@ -2544,7 +2637,9 @@ class SemanticChecker:
                     )
                 )
 
-        missing = [m.name for m in init_members if not m.has_initializer and m.name not in seen]
+        missing = [
+            m.name for m in init_members if not m.has_initializer and m.name not in seen
+        ]
         if missing:
             raise SyntaxError(
                 err(
@@ -2564,9 +2659,13 @@ class SemanticChecker:
             and self._current_class_name is not None
         )
 
-    def _check_self_member_assignment(self, attr: str, value: ast.expr, lineno: int) -> None:
+    def _check_self_member_assignment(
+        self, attr: str, value: ast.expr, lineno: int
+    ) -> None:
         if not self._current_class_member_map:
-            raise SyntaxError(err("E2169", lineno, "instance assignment outside class context"))
+            raise SyntaxError(
+                err("E2169", lineno, "instance assignment outside class context")
+            )
         member = self._current_class_member_map.get(attr)
         if member is None:
             raise SyntaxError(
@@ -2801,8 +2900,8 @@ class SemanticChecker:
                         lineno,
                         f"shadowing is forbidden for name '{name}'",
                         "Rename the inner binding to avoid shadowing.",
+                    )
                 )
-            )
 
         qualified_name = (
             f"{self._current_callable_name}.{name}"
@@ -2930,12 +3029,18 @@ class SemanticChecker:
                 )
             )
         target_node, alias_node = call.args
-        if not isinstance(target_node, ast.Constant) or not isinstance(target_node.value, str):
-            raise SyntaxError(err("E2202", stmt.lineno, "native import target must be string"))
+        if not isinstance(target_node, ast.Constant) or not isinstance(
+            target_node.value, str
+        ):
+            raise SyntaxError(
+                err("E2202", stmt.lineno, "native import target must be string")
+            )
         if not isinstance(alias_node, ast.Constant) or (
             alias_node.value is not None and not isinstance(alias_node.value, str)
         ):
-            raise SyntaxError(err("E2203", stmt.lineno, "native import alias must be string/none"))
+            raise SyntaxError(
+                err("E2203", stmt.lineno, "native import alias must be string/none")
+            )
         return target_node.value, alias_node.value
 
     def _extract_file_import(self, stmt: ast.stmt) -> tuple[str, str]:
@@ -2951,10 +3056,18 @@ class SemanticChecker:
                 )
             )
         path_node, alias_node = call.args
-        if not isinstance(path_node, ast.Constant) or not isinstance(path_node.value, str):
-            raise SyntaxError(err("E2205", stmt.lineno, "file import path must be string"))
-        if not isinstance(alias_node, ast.Constant) or not isinstance(alias_node.value, str):
-            raise SyntaxError(err("E2206", stmt.lineno, "file import alias must be string"))
+        if not isinstance(path_node, ast.Constant) or not isinstance(
+            path_node.value, str
+        ):
+            raise SyntaxError(
+                err("E2205", stmt.lineno, "file import path must be string")
+            )
+        if not isinstance(alias_node, ast.Constant) or not isinstance(
+            alias_node.value, str
+        ):
+            raise SyntaxError(
+                err("E2206", stmt.lineno, "file import alias must be string")
+            )
         return path_node.value, alias_node.value
 
     def _extract_pyimport(self, stmt: ast.stmt) -> tuple[str, str | None]:
@@ -2970,12 +3083,18 @@ class SemanticChecker:
                 )
             )
         module_node, alias_node = call.args
-        if not isinstance(module_node, ast.Constant) or not isinstance(module_node.value, str):
-            raise SyntaxError(err("E2208", stmt.lineno, "pyimport module must be string"))
+        if not isinstance(module_node, ast.Constant) or not isinstance(
+            module_node.value, str
+        ):
+            raise SyntaxError(
+                err("E2208", stmt.lineno, "pyimport module must be string")
+            )
         if not isinstance(alias_node, ast.Constant) or (
             alias_node.value is not None and not isinstance(alias_node.value, str)
         ):
-            raise SyntaxError(err("E2209", stmt.lineno, "pyimport alias must be string/none"))
+            raise SyntaxError(
+                err("E2209", stmt.lineno, "pyimport alias must be string/none")
+            )
         return module_node.value, alias_node.value
 
     def _is_binding_decl_stmt(self, stmt: ast.stmt) -> bool:
@@ -3000,11 +3119,17 @@ class SemanticChecker:
             )
         kind, name, annotation, value, has_initializer, is_public = call.args
         if not isinstance(kind, ast.Constant) or not isinstance(kind.value, str):
-            raise SyntaxError(err("E2026", stmt.lineno, "binding kind must be a string"))
+            raise SyntaxError(
+                err("E2026", stmt.lineno, "binding kind must be a string")
+            )
         if kind.value not in {"const", "var"}:
-            raise SyntaxError(err("E2027", stmt.lineno, "binding kind must be 'const' or 'var'"))
+            raise SyntaxError(
+                err("E2027", stmt.lineno, "binding kind must be 'const' or 'var'")
+            )
         if not isinstance(name, ast.Constant) or not isinstance(name.value, str):
-            raise SyntaxError(err("E2028", stmt.lineno, "binding name must be a string"))
+            raise SyntaxError(
+                err("E2028", stmt.lineno, "binding name must be a string")
+            )
         if not isinstance(annotation, ast.Constant) or (
             annotation.value is not None and not isinstance(annotation.value, str)
         ):
@@ -3021,7 +3146,9 @@ class SemanticChecker:
                     "binding initializer flag must be a boolean",
                 )
             )
-        if not isinstance(is_public, ast.Constant) or not isinstance(is_public.value, bool):
+        if not isinstance(is_public, ast.Constant) or not isinstance(
+            is_public.value, bool
+        ):
             raise SyntaxError(
                 err(
                     "E2152",
@@ -3061,22 +3188,31 @@ class SemanticChecker:
                 )
             )
         enum_name = call.args[0]
-        if not isinstance(enum_name, ast.Constant) or not isinstance(enum_name.value, str):
+        if not isinstance(enum_name, ast.Constant) or not isinstance(
+            enum_name.value, str
+        ):
             raise SyntaxError(
                 err("E2032", stmt.lineno, "enum name must be a string literal")
             )
         return enum_name.value
 
     def _node_range(
-        self, node: ast.AST | ast.expr | ast.arg | ast.stmt, *, fallback_name: str | None = None
+        self,
+        node: ast.AST | ast.expr | ast.arg | ast.stmt,
+        *,
+        fallback_name: str | None = None,
     ) -> SourceRange:
         start_line = getattr(node, "lineno", 1) or 1
         start_col = getattr(node, "col_offset", 0) or 0
         end_line = getattr(node, "end_lineno", start_line) or start_line
-        end_col = getattr(node, "end_col_offset", start_col + (len(fallback_name or "") or 1))
+        end_col = getattr(
+            node, "end_col_offset", start_col + (len(fallback_name or "") or 1)
+        )
         if end_line == start_line and end_col <= start_col:
             end_col = start_col + max(1, len(fallback_name or ""))
-        return SourceRange(start=(start_line, start_col + 1), end=(end_line, end_col + 1))
+        return SourceRange(
+            start=(start_line, start_col + 1), end=(end_line, end_col + 1)
+        )
 
     def _attribute_location(self, expr: ast.Attribute) -> tuple[int, int]:
         end_line = getattr(expr, "end_lineno", expr.lineno) or expr.lineno
@@ -3105,7 +3241,9 @@ class SemanticChecker:
             kind=kind,
             detail=detail,
             type_name=type_name,
-            location=SourceRange(start=location, end=(location[0], location[1] + max(1, len(name)))),
+            location=SourceRange(
+                start=location, end=(location[0], location[1] + max(1, len(name)))
+            ),
             selection_range=SourceRange(
                 start=location, end=(location[0], location[1] + max(1, len(name)))
             ),
@@ -3134,10 +3272,14 @@ class SemanticChecker:
         reference = ReferenceSite(
             name=name,
             qualified_name=qualified_name,
-            location=SourceRange(start=location, end=(location[0], location[1] + max(1, len(name)))),
+            location=SourceRange(
+                start=location, end=(location[0], location[1] + max(1, len(name)))
+            ),
             kind=kind,
         )
-        self._analysis.references_by_qualified_name.setdefault(qualified_name, []).append(reference)
+        self._analysis.references_by_qualified_name.setdefault(
+            qualified_name, []
+        ).append(reference)
         self._analysis.references_by_name.setdefault(name, []).append(reference)
 
     def _validate_type_name(self, type_name: str, lineno: int) -> None:

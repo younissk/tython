@@ -8,7 +8,12 @@ from .helpers import find_matching, split_once_top_level, split_top_level
 def normalize_type_expr(type_expr: str, lineno: int) -> str:
     if not type_expr:
         raise SyntaxError(
-            err("E1002", lineno, "empty type annotation", "Provide a concrete type name.")
+            err(
+                "E1002",
+                lineno,
+                "empty type annotation",
+                "Provide a concrete type name.",
+            )
         )
 
     parser = _TypeParser(type_expr, lineno)
@@ -142,9 +147,11 @@ class _TypeParser:
     def _parse_base_or_list(self) -> str:
         self.skip_ws()
         start = self.i
-        while not self.at_end() and (self.text[self.i].isalnum() or self.text[self.i] == "_"):
+        while not self.at_end() and (
+            self.text[self.i].isalnum() or self.text[self.i] == "_"
+        ):
             self.i += 1
-        base = self.text[start:self.i]
+        base = self.text[start : self.i]
 
         if not base or not TYPE_BASE_RE.fullmatch(base):
             raise SyntaxError(
@@ -156,7 +163,13 @@ class _TypeParser:
                 )
             )
 
-        if base in RESERVED_WORDS and base not in {"int", "float", "bool", "str", "none"}:
+        if base in RESERVED_WORDS and base not in {
+            "int",
+            "float",
+            "bool",
+            "str",
+            "none",
+        }:
             raise SyntaxError(
                 err(
                     "E1004",

@@ -9,7 +9,7 @@ Module(
           Constant(value=None),
           Constant(value=0),
           Constant(value=True),
-          Constant(value=False)])),
+          Constant(value=False)],
     If(
       test=Compare(
         left=Name(id='i', ctx=Load()),
@@ -66,7 +66,7 @@ Module(
             comparators=[
               Constant(value=2)]),
           body=[
-            Continue()]),
+            Continue()],
         If(
           test=Compare(
             left=Name(id='i', ctx=Load()),
@@ -75,7 +75,8 @@ Module(
             comparators=[
               Constant(value=3)]),
           body=[
-            Break()])]),
+            Break()],
+          orelse=[])],
     Expr(
       value=Call(
         func=Name(id='__custom_binding_decl__', ctx=Load()),
@@ -93,4 +94,5 @@ Module(
             body=Constant(value='pos'),
             orelse=Constant(value='zero')),
           Constant(value=True),
-          Constant(value=False)]))])
+          Constant(value=False)],
+        keywords=[]))],

@@ -78,6 +78,10 @@ Required fields include:
 - `range`
 - `timestamp`
 
+The published schema is versioned and documented in [Diagnostic Schema](../reference/diagnostic-schema.md).
+
+The published error-code inventory is documented in [Error Code Catalog](../reference/error-codes.md).
+
 ## Diagnostic Rendering
 
 CLI supports:

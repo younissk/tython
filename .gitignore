@@ -1,6 +1,10 @@
 # Python caches
 __pycache__/
 *.py[cod]
+build/
+dist/
+*.egg-info/
+.project/
 
 # Test/runtime caches
 .pytest_cache/

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..diagnostics import format_legacy_error_message, make_diagnostic
 
+
 def err(code: str, lineno: int, message: str, hint: str | None = None) -> str:
     diagnostic = make_diagnostic(
         code=code,

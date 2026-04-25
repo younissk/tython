@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .core import lower, parse_custom
-from .custom_frontend import FILE_IMPORT_SENTINEL, NATIVE_IMPORT_SENTINEL, PYIMPORT_SENTINEL
+from .custom_frontend import (
+    FILE_IMPORT_SENTINEL,
+    NATIVE_IMPORT_SENTINEL,
+    PYIMPORT_SENTINEL,
+)
 from .project import (
     LOCK_FILE,
     ProjectManifest,
@@ -37,6 +41,7 @@ def build_project(
 ) -> Path:
     manifest = load_manifest(project_root)
     from .project import load_lock
+
     lock = load_lock(project_root)
     if lock is None:
         lock = lock_project(project_root)
@@ -85,7 +90,9 @@ def build_project(
     return build_root
 
 
-def run_generated_target(project_root: Path, target_file: Path, *, mode: str = "exec") -> None:
+def run_generated_target(
+    project_root: Path, target_file: Path, *, mode: str = "exec"
+) -> None:
     build_root = build_project(project_root)
     manifest = load_manifest(project_root)
     rel = target_file.resolve().relative_to((project_root / "src").resolve())
@@ -124,12 +131,22 @@ def _collect_units(project_root: Path, manifest: ProjectManifest) -> list[Source
     units: list[SourceUnit] = []
     src_root = project_root / "src"
     if not src_root.exists():
-        raise SyntaxError("[E3204] Line 1: src/ directory missing. Hint: create src/ with .ty sources.")
+        raise SyntaxError(
+            "[E3204] Line 1: src/ directory missing. Hint: create src/ with .ty sources."
+        )
 
     for path in sorted(src_root.rglob("*.ty")):
-        rel_module = path.relative_to(src_root).with_suffix("").as_posix().replace("/", ".")
+        rel_module = (
+            path.relative_to(src_root).with_suffix("").as_posix().replace("/", ".")
+        )
         module_name = f"{manifest.name}.{rel_module}"
-        units.append(SourceUnit(source_path=path.resolve(), module_name=module_name, source_root=src_root.resolve()))
+        units.append(
+            SourceUnit(
+                source_path=path.resolve(),
+                module_name=module_name,
+                source_root=src_root.resolve(),
+            )
+        )
 
     return units
 
@@ -147,7 +164,9 @@ def _collect_imports(tree: ast.AST) -> list[tuple[str, str, str | None]]:
         ):
             continue
         call = stmt.value
-        if not isinstance(call.args[0], ast.Constant) or not isinstance(call.args[0].value, str):
+        if not isinstance(call.args[0], ast.Constant) or not isinstance(
+            call.args[0].value, str
+        ):
             continue
         alias: str | None = None
         if isinstance(call.args[1], ast.Constant) and (
@@ -203,7 +222,9 @@ def _ensure_package_inits(directory: Path, src_root: Path) -> None:
         current = current.parent
 
 
-def _write_generated_pyproject(project_root: Path, manifest: ProjectManifest, build_root: Path) -> None:
+def _write_generated_pyproject(
+    project_root: Path, manifest: ProjectManifest, build_root: Path
+) -> None:
     lines = [
         "[project]",
         f'name = "{manifest.name}"',

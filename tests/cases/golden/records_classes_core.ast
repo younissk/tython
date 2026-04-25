@@ -7,7 +7,7 @@ Module(
           value=Call(
             func=Name(id='__custom_record_marker__', ctx=Load()),
             args=[
-              Constant(value=False)])),
+              Constant(value=False)],
         Expr(
           value=Call(
             func=Name(id='__custom_class_member__', ctx=Load()),
@@ -18,7 +18,7 @@ Module(
               Constant(value=None),
               Constant(value=False),
               Constant(value=True),
-              Constant(value=True)])),
+              Constant(value=True)],
         Expr(
           value=Call(
             func=Name(id='__custom_class_member__', ctx=Load()),
@@ -29,7 +29,8 @@ Module(
               Constant(value=None),
               Constant(value=False),
               Constant(value=True),
-              Constant(value=True)]))]),
+              Constant(value=True)],
+            keywords=[]))],
     ClassDef(
       name='Fish',
       body=[
@@ -38,7 +39,7 @@ Module(
             func=Name(id='__custom_class_marker__', ctx=Load()),
             args=[
               Constant(value='Animal'),
-              Constant(value=False)])),
+              Constant(value=False)],
         Expr(
           value=Call(
             func=Name(id='__custom_class_member__', ctx=Load()),
@@ -49,7 +50,7 @@ Module(
               Constant(value=None),
               Constant(value=False),
               Constant(value=True),
-              Constant(value=True)])),
+              Constant(value=True)],
         Expr(
           value=Call(
             func=Name(id='__custom_class_member__', ctx=Load()),
@@ -60,12 +61,12 @@ Module(
               Constant(value=0),
               Constant(value=True),
               Constant(value=True),
-              Constant(value=True)])),
+              Constant(value=True)],
         FunctionDef(
           name='__tython_setup__',
           args=arguments(
             args=[
-              arg(arg='self')]),
+              arg(arg='self')],
           body=[
             Assign(
               targets=[
@@ -85,7 +86,7 @@ Module(
           name='speak',
           args=arguments(
             args=[
-              arg(arg='self')]),
+              arg(arg='self')],
           body=[
             Expr(
               value=Call(
@@ -94,10 +95,11 @@ Module(
                   Attribute(
                     value=Name(id='self', ctx=Load()),
                     attr='name',
-                    ctx=Load())]))],
+                    ctx=Load())],
+                keywords=[]))],
           decorator_list=[
             Name(id='__custom_pub__', ctx=Load())],
-          returns=Constant(value=None))]),
+          returns=Constant(value=None))],
     Expr(
       value=Call(
         func=Name(id='__custom_binding_decl__', ctx=Load()),
@@ -112,7 +114,7 @@ Module(
                 arg='name',
                 value=Constant(value='Nemo'))]),
           Constant(value=True),
-          Constant(value=False)])),
+          Constant(value=False)],
     Expr(
       value=Call(
         func=Name(id='__custom_binding_decl__', ctx=Load()),
@@ -139,6 +141,7 @@ Module(
                         attr='speak',
                         ctx=Load())],
                     ctx=Load())],
-                ctx=Load())]),
+                ctx=Load())],
           Constant(value=True),
-          Constant(value=False)]))])
+          Constant(value=False)],
+        keywords=[]))],

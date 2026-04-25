@@ -5,31 +5,32 @@ Module(
         func=Name(id='__tython_native_import__', ctx=Load()),
         args=[
           Constant(value='net/http'),
-          Constant(value='http')])),
+          Constant(value='http')],
     Expr(
       value=Call(
         func=Name(id='__tython_file_import__', ctx=Load()),
         args=[
           Constant(value='./local/file.ty'),
-          Constant(value='file')])),
+          Constant(value='file')],
     Expr(
       value=Call(
         func=Name(id='__tython_pyimport__', ctx=Load()),
         args=[
           Constant(value='requests'),
-          Constant(value='req')])),
+          Constant(value='req')],
     Expr(
       value=Call(
         func=Name(id='print', ctx=Load()),
         args=[
-          Name(id='http', ctx=Load())])),
+          Name(id='http', ctx=Load())],
     Expr(
       value=Call(
         func=Name(id='print', ctx=Load()),
         args=[
-          Name(id='file', ctx=Load())])),
+          Name(id='file', ctx=Load())],
     Expr(
       value=Call(
         func=Name(id='print', ctx=Load()),
         args=[
-          Name(id='req', ctx=Load())]))])
+          Name(id='req', ctx=Load())],
+        keywords=[]))],

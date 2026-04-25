@@ -140,7 +140,9 @@ def test_error_for_disallowed_slice_indexing() -> None:
 
 
 def test_error_for_nested_func_declaration() -> None:
-    source = "func outer() -> int {\n    func inner() -> int = 1\n    return inner()\n}\n"
+    source = (
+        "func outer() -> int {\n    func inner() -> int = 1\n    return inner()\n}\n"
+    )
     with pytest.raises(SyntaxError) as exc:
         parse_custom(source)
     message = str(exc.value)
@@ -231,7 +233,7 @@ def test_error_for_manual_setup_call() -> None:
         "        print(this.name)\n"
         "    }\n"
         "}\n"
-        "const F = Fish(name: \"Nemo\")\n"
+        'const F = Fish(name: "Nemo")\n'
         "F.setup()\n"
     )
     with pytest.raises(SyntaxError) as exc:
@@ -248,7 +250,7 @@ def test_error_for_private_method_record_conformance() -> None:
         "}\n"
         "class Fish is Animal {\n"
         "    func speak() -> none {\n"
-        "        print(\"x\")\n"
+        '        print("x")\n'
         "    }\n"
         "}\n"
     )
@@ -268,20 +270,20 @@ def test_error_handling_throws_try_catch_finally_is_supported() -> None:
         "func read_file(path: str) -> str throws FileError {\n"
         "    raise FileError {\n"
         "        path: path\n"
-        "        reason: \"boom\"\n"
+        '        reason: "boom"\n'
         "    }\n"
         "}\n"
         "func run(path: str) -> str throws FileError {\n"
         "    return try read_file(path)\n"
         "}\n"
         "try {\n"
-        "    read_file(\"x\")\n"
+        '    read_file("x")\n'
         "} catch err: FileError {\n"
         "    print(err.reason)\n"
         "} catch any {\n"
-        "    print(\"fallback\")\n"
+        '    print("fallback")\n'
         "} finally {\n"
-        "    print(\"done\")\n"
+        '    print("done")\n'
         "}\n"
     )
     parse_custom(source)
@@ -296,11 +298,11 @@ def test_error_for_throwing_call_without_handling() -> None:
         "func read_file(path: str) -> str throws FileError {\n"
         "    raise FileError {\n"
         "        path: path\n"
-        "        reason: \"boom\"\n"
+        '        reason: "boom"\n'
         "    }\n"
         "}\n"
         "func run() -> str {\n"
-        "    return read_file(\"x\")\n"
+        '    return read_file("x")\n'
         "}\n"
     )
     with pytest.raises(SyntaxError) as exc:
@@ -311,7 +313,7 @@ def test_error_for_throwing_call_without_handling() -> None:
 
 
 def test_error_for_catch_non_record_type() -> None:
-    source = "try {\n    print(\"x\")\n} catch err: int {\n    print(err)\n}\n"
+    source = 'try {\n    print("x")\n} catch err: int {\n    print(err)\n}\n'
     with pytest.raises(SyntaxError) as exc:
         parse_custom(source)
     message = str(exc.value)

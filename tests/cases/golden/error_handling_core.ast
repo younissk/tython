@@ -7,7 +7,7 @@ Module(
           value=Call(
             func=Name(id='__custom_record_marker__', ctx=Load()),
             args=[
-              Constant(value=False)])),
+              Constant(value=False)],
         Expr(
           value=Call(
             func=Name(id='__custom_class_member__', ctx=Load()),
@@ -18,7 +18,7 @@ Module(
               Constant(value=None),
               Constant(value=False),
               Constant(value=True),
-              Constant(value=True)])),
+              Constant(value=True)],
         Expr(
           value=Call(
             func=Name(id='__custom_class_member__', ctx=Load()),
@@ -29,14 +29,15 @@ Module(
               Constant(value=None),
               Constant(value=False),
               Constant(value=True),
-              Constant(value=True)]))]),
+              Constant(value=True)],
+            keywords=[]))],
     FunctionDef(
       name='read_file',
       args=arguments(
         args=[
           arg(
             arg='path',
-            annotation=Name(id='str', ctx=Load()))]),
+            annotation=Name(id='str', ctx=Load()))],
       body=[
         If(
           test=Compare(
@@ -63,14 +64,16 @@ Module(
                           Constant(value='reason'),
                           Constant(value='empty path')],
                         ctx=Load())],
-                    ctx=Load())]))]),
+                    ctx=Load())],
+                keywords=[]))],
         Return(
           value=Constant(value='ok'))],
       decorator_list=[
         Call(
           func=Name(id='__tython_throws__', ctx=Load()),
           args=[
-            Constant(value='FileError')])],
+            Constant(value='FileError')],
+          keywords=[])],
       returns=Name(id='str', ctx=Load())),
     FunctionDef(
       name='run',
@@ -78,7 +81,7 @@ Module(
         args=[
           arg(
             arg='path',
-            annotation=Name(id='str', ctx=Load()))]),
+            annotation=Name(id='str', ctx=Load()))],
       body=[
         Return(
           value=Call(
@@ -87,12 +90,15 @@ Module(
               Call(
                 func=Name(id='read_file', ctx=Load()),
                 args=[
-                  Name(id='path', ctx=Load())])]))],
+                  Name(id='path', ctx=Load())],
+                keywords=[])],
+            keywords=[]))],
       decorator_list=[
         Call(
           func=Name(id='__tython_throws__', ctx=Load()),
           args=[
-            Constant(value='FileError')])],
+            Constant(value='FileError')],
+          keywords=[])],
       returns=Name(id='str', ctx=Load())),
     Try(
       body=[
@@ -106,9 +112,10 @@ Module(
               Call(
                 func=Name(id='read_file', ctx=Load()),
                 args=[
-                  Constant(value='notes.txt')]),
+                  Constant(value='notes.txt')],
               Constant(value=True),
-              Constant(value=False)]))],
+              Constant(value=False)],
+            keywords=[]))],
       handlers=[
         ExceptHandler(
           type=Name(id='FileError', ctx=Load()),
@@ -121,7 +128,8 @@ Module(
                   Attribute(
                     value=Name(id='err', ctx=Load()),
                     attr='reason',
-                    ctx=Load())]))]),
+                    ctx=Load())],
+                keywords=[]))]),
         ExceptHandler(
           type=Name(id='__TythonRecoverableError', ctx=Load()),
           name='any',
@@ -130,10 +138,12 @@ Module(
               value=Call(
                 func=Name(id='print', ctx=Load()),
                 args=[
-                  Constant(value='fallback')]))])],
+                  Constant(value='fallback')],
+                keywords=[]))])],
       finalbody=[
         Expr(
           value=Call(
             func=Name(id='print', ctx=Load()),
             args=[
-              Constant(value='done')]))])])
+              Constant(value='done')],
+            keywords=[]))])],

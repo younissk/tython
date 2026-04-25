@@ -78,7 +78,12 @@ def load_manifest(project_root: Path) -> ProjectManifest:
     project_path = project_root / PROJECT_FILE
     if not project_path.exists():
         raise SyntaxError(
-            _diag("E3001", 1, "project.toml missing", "Create project.toml in project root.")
+            _diag(
+                "E3001",
+                1,
+                "project.toml missing",
+                "Create project.toml in project root.",
+            )
         )
 
     data = tomllib.loads(project_path.read_text())
@@ -91,7 +96,12 @@ def load_manifest(project_root: Path) -> ProjectManifest:
     name = _required_str(project, "name", "E3003")
     if not _NAME_RE.fullmatch(name):
         raise SyntaxError(
-            _diag("E3004", 1, f"invalid project name '{name}'", "Use snake_case identifier style.")
+            _diag(
+                "E3004",
+                1,
+                f"invalid project name '{name}'",
+                "Use snake_case identifier style.",
+            )
         )
     version = _required_str(project, "version", "E3005")
     entry = _required_str(project, "entry", "E3006")
@@ -101,15 +111,34 @@ def load_manifest(project_root: Path) -> ProjectManifest:
     if raw_packages is None:
         raw_packages = {}
     if not isinstance(raw_packages, dict):
-        raise SyntaxError(_diag("E3009", 1, "[packages] must be table", "Use [packages.<name>] sections."))
+        raise SyntaxError(
+            _diag(
+                "E3009",
+                1,
+                "[packages] must be table",
+                "Use [packages.<name>] sections.",
+            )
+        )
 
     for name_key, pkg_data in raw_packages.items():
         if not isinstance(name_key, str) or not _NAME_RE.fullmatch(name_key):
             raise SyntaxError(
-                _diag("E3010", 1, f"invalid package name '{name_key}'", "Use snake_case identifier names.")
+                _diag(
+                    "E3010",
+                    1,
+                    f"invalid package name '{name_key}'",
+                    "Use snake_case identifier names.",
+                )
             )
         if not isinstance(pkg_data, dict):
-            raise SyntaxError(_diag("E3011", 1, f"package '{name_key}' must be table", "Use [packages.<name>] table."))
+            raise SyntaxError(
+                _diag(
+                    "E3011",
+                    1,
+                    f"package '{name_key}' must be table",
+                    "Use [packages.<name>] table.",
+                )
+            )
 
         git = _required_str(pkg_data, "git", "E3012")
         if "rev" not in pkg_data:
@@ -129,12 +158,23 @@ def load_manifest(project_root: Path) -> ProjectManifest:
     if raw_python is None:
         raw_python = {}
     if not isinstance(raw_python, dict):
-        raise SyntaxError(_diag("E3015", 1, "[python] must be table", "Use [python].dependencies list."))
+        raise SyntaxError(
+            _diag(
+                "E3015", 1, "[python] must be table", "Use [python].dependencies list."
+            )
+        )
     raw_deps = raw_python.get("dependencies", [])
     if raw_deps is None:
         raw_deps = []
     if not isinstance(raw_deps, list) or any(not isinstance(x, str) for x in raw_deps):
-        raise SyntaxError(_diag("E3016", 1, "[python].dependencies must be string list", "Use dependency strings."))
+        raise SyntaxError(
+            _diag(
+                "E3016",
+                1,
+                "[python].dependencies must be string list",
+                "Use dependency strings.",
+            )
+        )
     python_deps.extend(raw_deps)
 
     return ProjectManifest(
@@ -154,12 +194,18 @@ def load_lock(project_root: Path) -> ProjectLock | None:
 
     raw_packages = data.get("packages", {})
     if not isinstance(raw_packages, dict):
-        raise SyntaxError(_diag("E3020", 1, "invalid project.lock [packages]", "Regenerate lockfile."))
+        raise SyntaxError(
+            _diag("E3020", 1, "invalid project.lock [packages]", "Regenerate lockfile.")
+        )
 
     packages: dict[str, LockedPackage] = {}
     for name, pkg in raw_packages.items():
         if not isinstance(pkg, dict):
-            raise SyntaxError(_diag("E3021", 1, f"invalid lock package '{name}'", "Regenerate lockfile."))
+            raise SyntaxError(
+                _diag(
+                    "E3021", 1, f"invalid lock package '{name}'", "Regenerate lockfile."
+                )
+            )
         git = _required_str(pkg, "git", "E3022")
         requested = _required_str(pkg, "requested", "E3023")
         commit = _required_str(pkg, "commit", "E3024")
@@ -176,10 +222,16 @@ def load_lock(project_root: Path) -> ProjectLock | None:
     if raw_python is None:
         raw_python = {}
     if not isinstance(raw_python, dict):
-        raise SyntaxError(_diag("E3026", 1, "invalid project.lock [python]", "Regenerate lockfile."))
+        raise SyntaxError(
+            _diag("E3026", 1, "invalid project.lock [python]", "Regenerate lockfile.")
+        )
     deps = raw_python.get("dependencies", [])
     if not isinstance(deps, list) or any(not isinstance(x, str) for x in deps):
-        raise SyntaxError(_diag("E3027", 1, "invalid lock python dependencies", "Regenerate lockfile."))
+        raise SyntaxError(
+            _diag(
+                "E3027", 1, "invalid lock python dependencies", "Regenerate lockfile."
+            )
+        )
 
     return ProjectLock(packages=packages, python_dependencies=deps)
 
@@ -328,7 +380,14 @@ def _resolve_git_ref(git_url: str, requested: str) -> str:
 def _required_str(mapping: dict[str, object], key: str, code: str) -> str:
     value = mapping.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise SyntaxError(_diag(code, 1, f"missing or invalid '{key}'", f"Set `{key}` to non-empty string."))
+        raise SyntaxError(
+            _diag(
+                code,
+                1,
+                f"missing or invalid '{key}'",
+                f"Set `{key}` to non-empty string.",
+            )
+        )
     return value
 
 

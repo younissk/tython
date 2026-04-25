@@ -62,13 +62,17 @@ def test_init_creates_minimal_project(tmp_path: Path) -> None:
     manifest = (project_root / "project.toml").read_text()
     assert 'name = "new_app"' in manifest
     assert 'entry = "src/main.ty"' in manifest
-    assert (project_root / "src" / "main.ty").read_text() == 'print("hello from tython")\n'
+    assert (
+        project_root / "src" / "main.ty"
+    ).read_text() == 'print("hello from tython")\n'
 
 
 def _init_git_repo(path: Path) -> None:
     subprocess.run(["git", "init", "-b", "main"], cwd=path, check=True)
     subprocess.run(["git", "config", "user.name", "test"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=path, check=True
+    )
 
 
 def _create_native_dep_repo(tmp_path: Path) -> Path:
@@ -121,7 +125,9 @@ def test_lock_writes_exact_commit_for_native_package(tmp_path: Path) -> None:
     commit = _head_commit(dep_root)
     project_root = _write_project(tmp_path)
     with chdir(project_root):
-        add_result = runner.invoke(app, ["add", str(dep_root), "--rev", commit, "--name", "http"])
+        add_result = runner.invoke(
+            app, ["add", str(dep_root), "--rev", commit, "--name", "http"]
+        )
     assert add_result.exit_code == 0, add_result.output
 
     with chdir(project_root):
@@ -311,8 +317,22 @@ vim.cmd('qa!')
 """.format(
             uv=uv_bin,
             package_root=str(pack_root / "tython" / "start" / "tython-vim"),
-            ftdetect=str(pack_root / "tython" / "start" / "tython-vim" / "ftdetect" / "tython.vim"),
-            plugin=str(pack_root / "tython" / "start" / "tython-vim" / "plugin" / "tython_lsp.lua"),
+            ftdetect=str(
+                pack_root
+                / "tython"
+                / "start"
+                / "tython-vim"
+                / "ftdetect"
+                / "tython.vim"
+            ),
+            plugin=str(
+                pack_root
+                / "tython"
+                / "start"
+                / "tython-vim"
+                / "plugin"
+                / "tython_lsp.lua"
+            ),
             source=str(source_path),
         )
     )

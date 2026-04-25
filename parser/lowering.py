@@ -58,7 +58,9 @@ class _LowerCustomIR(ast.NodeTransformer):
                 continue
             lowered_body.append(lowered_stmt)
 
-        if self._needs_enum_import and not _has_import_from(lowered_body, "enum", "Enum"):
+        if self._needs_enum_import and not _has_import_from(
+            lowered_body, "enum", "Enum"
+        ):
             lowered_body.insert(
                 0,
                 ast.ImportFrom(
@@ -94,7 +96,10 @@ class _LowerCustomIR(ast.NodeTransformer):
         assert isinstance(node, ast.FunctionDef)
         clean_decorators: list[ast.expr] = []
         for decorator in node.decorator_list:
-            if isinstance(decorator, ast.Name) and decorator.id == PUB_DECORATOR_SENTINEL:
+            if (
+                isinstance(decorator, ast.Name)
+                and decorator.id == PUB_DECORATOR_SENTINEL
+            ):
                 continue
             if (
                 isinstance(decorator, ast.Call)
@@ -112,7 +117,10 @@ class _LowerCustomIR(ast.NodeTransformer):
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> ast.AST:
         node = self.generic_visit(node)
         assert isinstance(node, ast.ExceptHandler)
-        if isinstance(node.type, ast.Name) and node.type.id == RECOVERABLE_ERROR_BASE_NAME:
+        if (
+            isinstance(node.type, ast.Name)
+            and node.type.id == RECOVERABLE_ERROR_BASE_NAME
+        ):
             self._needs_recoverable_base = True
         return node
 
@@ -211,7 +219,9 @@ class _LowerCustomIR(ast.NodeTransformer):
             if not isinstance(element, ast.Constant) or not isinstance(
                 element.value, str
             ):
-                raise SyntaxError("enum member names must be string literals in custom IR")
+                raise SyntaxError(
+                    "enum member names must be string literals in custom IR"
+                )
             members.append(element.value)
 
         self._needs_enum_import = True
@@ -234,10 +244,13 @@ class _LowerCustomIR(ast.NodeTransformer):
             raise SyntaxError("internal binding IR shape is invalid")
 
         _, name_node, annotation_node, value, has_initializer_node, _ = call.args
-        if not isinstance(name_node, ast.Constant) or not isinstance(name_node.value, str):
+        if not isinstance(name_node, ast.Constant) or not isinstance(
+            name_node.value, str
+        ):
             raise SyntaxError("binding name must be a string literal in custom IR")
         if not isinstance(annotation_node, ast.Constant) or (
-            annotation_node.value is not None and not isinstance(annotation_node.value, str)
+            annotation_node.value is not None
+            and not isinstance(annotation_node.value, str)
         ):
             raise SyntaxError("binding annotation must be string or none in custom IR")
         if not isinstance(has_initializer_node, ast.Constant) or not isinstance(
@@ -254,9 +267,13 @@ class _LowerCustomIR(ast.NodeTransformer):
                 )
             return ast.Assign(targets=[target], value=value)
 
-        annotation = ast.parse(_to_python_annotation(annotation_node.value), mode="eval").body
+        annotation = ast.parse(
+            _to_python_annotation(annotation_node.value), mode="eval"
+        ).body
         ann_value = value if has_initializer else None
-        return ast.AnnAssign(target=target, annotation=annotation, value=ann_value, simple=1)
+        return ast.AnnAssign(
+            target=target, annotation=annotation, value=ann_value, simple=1
+        )
 
     def _lower_classdef(self, stmt: ast.ClassDef) -> ast.ClassDef | None:
         marker = _extract_marker_call(stmt.body, RECORD_MARKER_SENTINEL)
@@ -282,7 +299,9 @@ class _LowerCustomIR(ast.NodeTransformer):
             fields.append(
                 ast.AnnAssign(
                     target=ast.Name(id=name, ctx=ast.Store()),
-                    annotation=ast.parse(_to_python_annotation(type_name), mode="eval").body,
+                    annotation=ast.parse(
+                        _to_python_annotation(type_name), mode="eval"
+                    ).body,
                     value=None,
                     simple=1,
                 )
@@ -292,7 +311,9 @@ class _LowerCustomIR(ast.NodeTransformer):
         record_bases: list[ast.expr] = []
         if stmt.name in self._thrown_record_types:
             self._needs_recoverable_base = True
-            record_bases.append(ast.Name(id=RECOVERABLE_ERROR_BASE_NAME, ctx=ast.Load()))
+            record_bases.append(
+                ast.Name(id=RECOVERABLE_ERROR_BASE_NAME, ctx=ast.Load())
+            )
         return ast.ClassDef(
             name=stmt.name,
             bases=record_bases,
@@ -302,7 +323,9 @@ class _LowerCustomIR(ast.NodeTransformer):
                 ast.Call(
                     func=ast.Name(id="dataclass", ctx=ast.Load()),
                     args=[],
-                    keywords=[ast.keyword(arg="frozen", value=ast.Constant(value=True))],
+                    keywords=[
+                        ast.keyword(arg="frozen", value=ast.Constant(value=True))
+                    ],
                 )
             ],
         )
@@ -320,7 +343,10 @@ class _LowerCustomIR(ast.NodeTransformer):
                     decorator_list=[
                         dec
                         for dec in member.decorator_list
-                        if not (isinstance(dec, ast.Name) and dec.id == PUB_DECORATOR_SENTINEL)
+                        if not (
+                            isinstance(dec, ast.Name)
+                            and dec.id == PUB_DECORATOR_SENTINEL
+                        )
                     ],
                     returns=member.returns,
                     type_comment=member.type_comment,
@@ -330,8 +356,14 @@ class _LowerCustomIR(ast.NodeTransformer):
                 else:
                     methods.append(clean)
 
-        init_members = [m for m in members if _const_str(m.args[0], "kind") in {"init_var", "init_const"}]
-        normal_members = [m for m in members if _const_str(m.args[0], "kind") in {"var", "const"}]
+        init_members = [
+            m
+            for m in members
+            if _const_str(m.args[0], "kind") in {"init_var", "init_const"}
+        ]
+        normal_members = [
+            m for m in members if _const_str(m.args[0], "kind") in {"var", "const"}
+        ]
 
         init_fn = self._build_init(init_members, normal_members, setup_method)
         body: list[ast.stmt] = [init_fn]
@@ -364,7 +396,9 @@ class _LowerCustomIR(ast.NodeTransformer):
             kwonlyargs.append(
                 ast.arg(
                     arg=name,
-                    annotation=ast.parse(_to_python_annotation(type_name), mode="eval").body
+                    annotation=ast.parse(
+                        _to_python_annotation(type_name), mode="eval"
+                    ).body
                     if type_name
                     else None,
                 )
@@ -428,7 +462,9 @@ class _LowerCustomIR(ast.NodeTransformer):
         if len(call.args) != 2 or call.keywords:
             raise SyntaxError("internal record literal IR shape is invalid")
         type_node, fields_node = call.args
-        if not isinstance(type_node, ast.Constant) or not isinstance(type_node.value, str):
+        if not isinstance(type_node, ast.Constant) or not isinstance(
+            type_node.value, str
+        ):
             raise SyntaxError("record literal type must be a string literal")
         if not isinstance(fields_node, ast.List):
             raise SyntaxError("record literal fields must be a literal list")
@@ -438,7 +474,9 @@ class _LowerCustomIR(ast.NodeTransformer):
             if not isinstance(element, ast.Tuple) or len(element.elts) != 2:
                 raise SyntaxError("record literal field entry must be (name, value)")
             key_node, value_node = element.elts
-            if not isinstance(key_node, ast.Constant) or not isinstance(key_node.value, str):
+            if not isinstance(key_node, ast.Constant) or not isinstance(
+                key_node.value, str
+            ):
                 raise SyntaxError("record literal field key must be string literal")
             keywords.append(ast.keyword(arg=key_node.value, value=value_node))
 
@@ -480,11 +518,15 @@ def _has_import_from(stmts: list[ast.stmt], module: str, name: str) -> bool:
 
 
 def _has_class_def(stmts: list[ast.stmt], class_name: str) -> bool:
-    return any(isinstance(stmt, ast.ClassDef) and stmt.name == class_name for stmt in stmts)
+    return any(
+        isinstance(stmt, ast.ClassDef) and stmt.name == class_name for stmt in stmts
+    )
 
 
 def _has_function_def(stmts: list[ast.stmt], fn_name: str) -> bool:
-    return any(isinstance(stmt, ast.FunctionDef) and stmt.name == fn_name for stmt in stmts)
+    return any(
+        isinstance(stmt, ast.FunctionDef) and stmt.name == fn_name for stmt in stmts
+    )
 
 
 def _build_recoverable_error_base() -> ast.ClassDef:
@@ -520,7 +562,13 @@ def _build_panic_helpers() -> list[ast.stmt]:
             ast.Raise(
                 exc=ast.Call(
                     func=ast.Name(id="__TythonPanic", ctx=ast.Load()),
-                    args=[ast.Call(func=ast.Name(id="str", ctx=ast.Load()), args=[ast.Name(id="message", ctx=ast.Load())], keywords=[])],
+                    args=[
+                        ast.Call(
+                            func=ast.Name(id="str", ctx=ast.Load()),
+                            args=[ast.Name(id="message", ctx=ast.Load())],
+                            keywords=[],
+                        )
+                    ],
                     keywords=[],
                 ),
                 cause=None,

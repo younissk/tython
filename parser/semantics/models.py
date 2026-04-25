@@ -124,7 +124,9 @@ class SemanticAnalysis:
     symbols_by_name: dict[str, SemanticSymbol] = field(default_factory=dict)
     symbols_by_qualified_name: dict[str, SemanticSymbol] = field(default_factory=dict)
     references_by_name: dict[str, list[ReferenceSite]] = field(default_factory=dict)
-    references_by_qualified_name: dict[str, list[ReferenceSite]] = field(default_factory=dict)
+    references_by_qualified_name: dict[str, list[ReferenceSite]] = field(
+        default_factory=dict
+    )
     top_level_symbols: list[SemanticSymbol] = field(default_factory=list)
     diagnostics: list[object] = field(default_factory=list)
 

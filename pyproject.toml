@@ -3,7 +3,7 @@ name = "tython"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "pegen>=0.3.0",
     "pytest>=9.0.3",
@@ -26,6 +26,9 @@ markers = [
     "lowering: IR to Python AST checks",
     "differential: CPython parity and compile checks",
 ]
+
+[tool.ruff]
+extend-exclude = ["build", "dist", "tython.egg-info", "corpus", "tests/cases"]
 
 [tool.uv]
 package = true

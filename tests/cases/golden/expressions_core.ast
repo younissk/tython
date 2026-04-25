@@ -14,7 +14,7 @@ Module(
               Constant(value=3)],
             ctx=Load()),
           Constant(value=True),
-          Constant(value=False)])),
+          Constant(value=False)],
     Expr(
       value=Call(
         func=Name(id='__custom_binding_decl__', ctx=Load()),
@@ -24,7 +24,7 @@ Module(
           Constant(value=None),
           Constant(value=1),
           Constant(value=True),
-          Constant(value=False)])),
+          Constant(value=False)],
     Expr(
       value=Call(
         func=Name(id='__custom_binding_decl__', ctx=Load()),
@@ -37,7 +37,7 @@ Module(
             slice=Name(id='idx', ctx=Load()),
             ctx=Load()),
           Constant(value=True),
-          Constant(value=False)])),
+          Constant(value=False)],
     Expr(
       value=Call(
         func=Name(id='__custom_binding_decl__', ctx=Load()),
@@ -58,4 +58,5 @@ Module(
                 op=Not(),
                 operand=Constant(value=False))]),
           Constant(value=True),
-          Constant(value=False)]))])
+          Constant(value=False)],
+        keywords=[]))],

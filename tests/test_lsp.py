@@ -8,7 +8,13 @@ from parser.lsp.server import TythonLspServer
 BASE_DIR = Path(__file__).parent / "cases" / "lsp"
 
 
-def _rpc(server: TythonLspServer, method: str, *, request_id: int | None = None, params: dict | None = None):
+def _rpc(
+    server: TythonLspServer,
+    method: str,
+    *,
+    request_id: int | None = None,
+    params: dict | None = None,
+):
     payload: dict[str, object] = {"jsonrpc": "2.0", "method": method}
     if request_id is not None:
         payload["id"] = request_id
@@ -18,7 +24,9 @@ def _rpc(server: TythonLspServer, method: str, *, request_id: int | None = None,
     return responses[0] if responses else None
 
 
-def _open_document(server: TythonLspServer, uri: str, text: str, version: int = 1) -> None:
+def _open_document(
+    server: TythonLspServer, uri: str, text: str, version: int = 1
+) -> None:
     _rpc(
         server,
         "textDocument/didOpen",
@@ -192,7 +200,12 @@ def test_formatting_returns_full_document_edit() -> None:
     assert result is not None
     edits = result["result"]
     assert len(edits) == 1
-    assert edits[0]["newText"] == (Path(__file__).parent / "cases" / "formatter" / "messy.expected.ty").read_text()
+    assert (
+        edits[0]["newText"]
+        == (
+            Path(__file__).parent / "cases" / "formatter" / "messy.expected.ty"
+        ).read_text()
+    )
 
 
 def test_code_action_offers_empty_block_fix() -> None:

@@ -1,4 +1,5 @@
-mkdocs-shadcn>=0.10.5
+mkdocs>=1.6.1
+mkdocs-material>=9.7.6
 numpy>=1.26.4
 pegen>=0.3.0
 pytest>=9.0.3

@@ -9,6 +9,7 @@ dist/
 # Test/runtime caches
 .pytest_cache/
 .ruff_cache/
+site/
 
 # Virtual environments
 .venv/

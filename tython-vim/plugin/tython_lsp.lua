@@ -7,4 +7,13 @@ if not vim.lsp or not vim.lsp.enable then
   return
 end
 
-vim.lsp.enable('tython')
+local function enable_tython()
+  vim.lsp.enable('tython')
+end
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'tython',
+  callback = enable_tython,
+})
+
+vim.schedule(enable_tython)

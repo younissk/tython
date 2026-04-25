@@ -37,5 +37,10 @@ package = true
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
+[dependency-groups]
+dev = [
+    "mkdocs-material>=9.7.6",
+]
+
 [tool.setuptools.packages.find]
 include = ["parser*"]

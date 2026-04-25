@@ -1,21 +1,38 @@
-# Tython Language Documentation
+# Tython
 
-Tython is a strict, explicit language syntax that is designed to be easy to read, easy to generate, and predictable to parse.
+Tython is strict, explicit, and parser-first.
+
+This site is built with MkDocs Material and tracks compiler behavior, not a separate docs-only design.
 
 ## Start Here
 
-- [Quickstart](./language/quickstart.md)
-- [Values and Bindings](./language/values-and-bindings.md)
-- [Expressions and Operators](./language/expressions.md)
-- [Scope and Name Resolution](./language/scope.md)
-- [Functions](./language/functions.md)
-- [Functions and Blocks](./language/functions-and-blocks.md)
-- [Enums](./language/enums.md)
-- [Records and Classes](./language/records-and-classes.md)
-- [Errors and Rejections](./language/errors.md)
+- [Getting Started](getting-started.md)
+- [Installation](installation.md)
+- [Quickstart](language/quickstart.md)
 
-## Implementation Reference
+## Read Next
 
-- [Parser Pipeline](./reference/parser-pipeline.md)
-- [Diagnostic Schema](./reference/diagnostic-schema.md)
-- [Error Code Catalog](./reference/error-codes.md)
+- [Values and Bindings](language/values-and-bindings.md)
+- [Expressions](language/expressions.md)
+- [Scope and Name Resolution](language/scope.md)
+- [Functions](language/functions.md)
+- [Records and Classes](language/records-and-classes.md)
+- [Errors](language/errors.md)
+
+## Tooling
+
+- [CLI](tooling/cli.md)
+- [LSP](tooling/lsp.md)
+- [Vim and Neovim](tooling/vim-neovim.md)
+- [Formatter](tooling/formatter.md)
+
+## Reference
+
+- [Parser Pipeline](reference/parser-pipeline.md)
+- [Diagnostic Schema](reference/diagnostic-schema.md)
+- [Error Codes](reference/error-codes.md)
+
+## AI
+
+- [AI Coding Guide](ai/ai-coding-guide.md)
+- [Debugging Guide](ai/debugging-guide.md)

@@ -60,6 +60,9 @@ def test_initialize_returns_expected_capabilities() -> None:
             "hoverProvider": True,
             "definitionProvider": True,
             "referencesProvider": True,
+            "completionProvider": {
+                "triggerCharacters": ["."],
+            },
             "documentSymbolProvider": True,
             "codeActionProvider": True,
             "documentFormattingProvider": True,
@@ -184,6 +187,69 @@ def test_hover_definition_references_and_symbols() -> None:
     assert [entry["name"] for entry in animal_children] == ["name"]
 
 
+def test_definition_and_completion_work_across_files(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    root.mkdir()
+    src = root / "src"
+    src.mkdir()
+
+    main_uri = (src / "main.ty").as_uri()
+    lib_path = src / "lib.ty"
+    lib_uri = lib_path.as_uri()
+
+    lib_path.write_text(
+        """pub var answer: int = 42
+
+pub func greet(name: str) -> str {
+    return "hi, " + name
+}
+
+var hidden: int = 0
+"""
+    )
+    (src / "main.ty").write_text(
+        """import "./lib.ty" as lib
+
+var result: int = lib.answer
+print(lib.g)
+"""
+    )
+
+    server = TythonLspServer()
+    _rpc(server, "initialize", request_id=1, params={"rootUri": root.as_uri()})
+    _open_document(server, main_uri, (src / "main.ty").read_text())
+    _open_document(server, lib_uri, lib_path.read_text())
+
+    definition = _rpc(
+        server,
+        "textDocument/definition",
+        request_id=20,
+        params={
+            "textDocument": {"uri": main_uri},
+            "position": {"line": 2, "character": 22},
+        },
+    )
+    assert definition is not None
+    assert definition["result"][0]["uri"] == lib_uri
+    assert definition["result"][0]["range"]["start"]["line"] == 0
+
+    completion = _rpc(
+        server,
+        "textDocument/completion",
+        request_id=21,
+        params={
+            "textDocument": {"uri": main_uri},
+            "position": {"line": 3, "character": 10},
+        },
+    )
+    assert completion is not None
+    items = completion["result"]["items"]
+    labels = [item["label"] for item in items]
+    assert "answer" in labels
+    assert "greet" in labels
+    assert "hidden" not in labels
+
+
 def test_formatting_returns_full_document_edit() -> None:
     server = TythonLspServer()
     uri = "file:///tmp/messy.ty"
@@ -237,7 +303,7 @@ def test_code_action_offers_empty_block_fix() -> None:
 def test_unknown_request_method_returns_protocol_error() -> None:
     server = TythonLspServer()
 
-    response = _rpc(server, "textDocument/completion", request_id=99, params={})
+    response = _rpc(server, "textDocument/signatureHelp", request_id=99, params={})
     assert response is not None
     assert response["error"]["code"] == -32601
 

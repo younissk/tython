@@ -39,7 +39,6 @@ endfunction
 
 augroup tython_lsp
   autocmd!
-  " Fallback filetype detection for users who didn't load ftdetect scripts.
   autocmd BufRead,BufNewFile *.ty setfiletype tython
   autocmd VimEnter * call <SID>RegisterTythonLsp()
   autocmd FileType tython call <SID>RegisterTythonLsp()

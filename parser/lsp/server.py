@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -7,8 +8,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from parser import parse_custom
+from parser.custom_frontend import FILE_IMPORT_SENTINEL, NATIVE_IMPORT_SENTINEL
 from parser.diagnostics import (
     diagnostic_from_exception,
     diagnostic_to_lsp,
@@ -25,6 +28,7 @@ JSONValue = dict[str, Any]
 @dataclass
 class DocumentState:
     uri: str
+    path: Path | None
     text: str
     version: int
     last_parse: Any = None
@@ -55,6 +59,7 @@ class TythonLspServer:
     def __init__(self, *, logger: Logger | None = None) -> None:
         self.logger = logger or Logger()
         self.documents: dict[str, DocumentState] = {}
+        self.workspace_root: Path | None = None
         self.shutdown_requested = False
         self.exit_requested = False
         self.logger.info("server start")
@@ -84,6 +89,7 @@ class TythonLspServer:
         try:
             if method == "initialize":
                 self.logger.info("initialize")
+                self._initialize_workspace(params)
                 return self._result(request_id, self._initialize_result())
 
             if method == "shutdown":
@@ -102,6 +108,10 @@ class TythonLspServer:
             if method == "textDocument/references":
                 self.logger.info("references request")
                 return self._result(request_id, self._references(params))
+
+            if method == "textDocument/completion":
+                self.logger.info("completion request")
+                return self._result(request_id, self._completion(params))
 
             if method == "textDocument/documentSymbol":
                 self.logger.info("document symbol request")
@@ -149,6 +159,9 @@ class TythonLspServer:
                 "hoverProvider": True,
                 "definitionProvider": True,
                 "referencesProvider": True,
+                "completionProvider": {
+                    "triggerCharacters": ["."],
+                },
                 "documentSymbolProvider": True,
                 "codeActionProvider": True,
                 "documentFormattingProvider": True,
@@ -173,7 +186,12 @@ class TythonLspServer:
         if not isinstance(version, int):
             version = 0
 
-        self.documents[uri] = DocumentState(uri=uri, text=text, version=version)
+        path = self._uri_to_path(uri)
+        self.documents[uri] = DocumentState(
+            uri=uri, path=path, text=text, version=version
+        )
+        if path is not None:
+            self._update_workspace_root(path)
         self.logger.info(f"open {uri}")
         self._reparse_and_collect(uri)
 
@@ -200,6 +218,10 @@ class TythonLspServer:
             doc.version = version
 
         doc.text = latest
+        if doc.path is None:
+            doc.path = self._uri_to_path(uri)
+        if doc.path is not None:
+            self._update_workspace_root(doc.path)
         self.logger.info(f"change {uri}")
         self._reparse_and_collect(uri)
 
@@ -282,7 +304,8 @@ class TythonLspServer:
     def _definition(self, params: Any) -> list[JSONValue] | None:
         symbol, doc = self._resolve_symbol_from_position(params)
         if symbol is None or doc is None:
-            return None
+            cross_file = self._definition_from_workspace(params)
+            return [cross_file] if cross_file is not None else None
         return [self._symbol_location_to_lsp_location(doc, symbol)]
 
     def _references(self, params: Any) -> list[JSONValue] | None:
@@ -347,6 +370,47 @@ class TythonLspServer:
             }
         ]
 
+    def _completion(self, params: Any) -> JSONValue | list[JSONValue] | None:
+        doc = self._document_from_params(params)
+        if doc is None:
+            return None
+        position = params.get("position", {})
+        if not isinstance(position, dict):
+            return []
+        line = position.get("line", 0)
+        character = position.get("character", 0)
+        if not isinstance(line, int) or not isinstance(character, int):
+            return []
+
+        line_text = self._line_at(doc.text, line)
+        if line_text is None:
+            return []
+
+        completion_target = self._attribute_completion_target(line_text, character)
+        if completion_target is None:
+            return []
+
+        base_name, member_prefix = completion_target
+        target_path = self._resolve_module_alias_path(doc, base_name)
+        if target_path is None:
+            return []
+
+        target_doc = self._load_document_from_path(target_path)
+        if target_doc is None or target_doc.last_analysis is None:
+            return []
+
+        items: list[JSONValue] = []
+        seen: set[str] = set()
+        for symbol in self._exported_top_level_symbols(target_doc):
+            if symbol.name in seen:
+                continue
+            if member_prefix and not symbol.name.startswith(member_prefix):
+                continue
+            seen.add(symbol.name)
+            items.append(self._symbol_to_completion_item(symbol))
+
+        return {"isIncomplete": False, "items": items}
+
     def _resolve_symbol_from_position(
         self, params: Any
     ) -> tuple[SemanticSymbol | None, DocumentState | None]:
@@ -364,6 +428,253 @@ class TythonLspServer:
         if symbol is None:
             return None, doc
         return symbol, doc
+
+    def _definition_from_workspace(self, params: Any) -> JSONValue | None:
+        doc = self._document_from_params(params)
+        if doc is None:
+            return None
+        position = params.get("position", {})
+        if not isinstance(position, dict):
+            return None
+        line = position.get("line", 0)
+        character = position.get("character", 0)
+        if not isinstance(line, int) or not isinstance(character, int):
+            return None
+
+        line_text = self._line_at(doc.text, line)
+        if line_text is None:
+            return None
+
+        attribute_target = self._attribute_completion_target(line_text, character)
+        if attribute_target is not None:
+            alias, _member_prefix = attribute_target
+            target_path = self._resolve_module_alias_path(doc, alias)
+            if target_path is not None:
+                word = word_at_position(doc.text, line, character)
+                if word == alias:
+                    return self._location_for_path(target_path)
+                if word is not None:
+                    target_doc = self._load_document_from_path(target_path)
+                    if target_doc is not None:
+                        symbol = self._find_exported_symbol(target_doc, word)
+                        if symbol is not None:
+                            return self._symbol_location_to_lsp_location(target_doc, symbol)
+
+        word = word_at_position(doc.text, line, character)
+        if word is None:
+            return None
+        target_path = self._resolve_module_alias_path(doc, word)
+        if target_path is not None:
+            return self._location_for_path(target_path)
+        return None
+
+    def _initialize_workspace(self, params: Any) -> None:
+        if not isinstance(params, dict):
+            return
+        root_uri = params.get("rootUri")
+        if isinstance(root_uri, str):
+            root = self._uri_to_path(root_uri)
+            if root is not None:
+                self.workspace_root = root
+                return
+
+        workspace_folders = params.get("workspaceFolders")
+        if isinstance(workspace_folders, list):
+            for folder in workspace_folders:
+                if not isinstance(folder, dict):
+                    continue
+                folder_uri = folder.get("uri")
+                if not isinstance(folder_uri, str):
+                    continue
+                root = self._uri_to_path(folder_uri)
+                if root is not None:
+                    self.workspace_root = root
+                    return
+
+        root_path = params.get("rootPath")
+        if isinstance(root_path, str) and root_path:
+            self.workspace_root = Path(root_path).resolve()
+
+    def _uri_to_path(self, uri: str) -> Path | None:
+        parsed = urlparse(uri)
+        if parsed.scheme != "file":
+            return None
+        path = unquote(parsed.path)
+        if not path:
+            return None
+        return Path(path).resolve()
+
+    def _update_workspace_root(self, path: Path) -> None:
+        path = path.resolve()
+        if self.workspace_root is None:
+            self.workspace_root = path.parent
+            return
+        try:
+            common = Path(os.path.commonpath([str(self.workspace_root), str(path.parent)]))
+        except ValueError:
+            return
+        self.workspace_root = common
+
+    def _workspace_source_paths(self) -> list[Path]:
+        if self.workspace_root is None or not self.workspace_root.exists():
+            return []
+        source_root = self.workspace_root
+        if (self.workspace_root / "src").exists():
+            source_root = self.workspace_root / "src"
+        return sorted(path.resolve() for path in source_root.rglob("*.ty"))
+
+    def _load_document_from_path(self, path: Path) -> DocumentState | None:
+        resolved = path.resolve()
+        for doc in self.documents.values():
+            if doc.path is not None and doc.path.resolve() == resolved:
+                return doc
+
+        try:
+            text = resolved.read_text()
+        except OSError:
+            return None
+
+        uri = resolved.as_uri()
+        temp_doc = DocumentState(uri=uri, path=resolved, text=text, version=0)
+        self._analyze_document(temp_doc)
+        return temp_doc
+
+    def _analyze_document(self, doc: DocumentState) -> None:
+        try:
+            doc.last_parse = parse_custom(doc.text)
+            doc.last_analysis = analyze_semantics(doc.last_parse)
+            doc.last_diagnostics = []
+        except Exception:
+            doc.last_parse = None
+            doc.last_analysis = None
+
+    def _resolve_module_alias_path(self, doc: DocumentState, alias: str) -> Path | None:
+        for name, path in self._module_imports_for_document(doc).items():
+            if name == alias:
+                return path
+        return None
+
+    def _exported_top_level_symbols(self, doc: DocumentState) -> list[SemanticSymbol]:
+        if doc.last_analysis is None:
+            return []
+        imported_aliases = set(self._module_imports_for_document(doc))
+        exported: list[SemanticSymbol] = []
+        for symbol in doc.last_analysis.top_level_symbols:
+            if symbol.name in imported_aliases:
+                continue
+            if symbol.is_public:
+                exported.append(symbol)
+        return exported
+
+    def _find_exported_symbol(
+        self, doc: DocumentState, name: str
+    ) -> SemanticSymbol | None:
+        for symbol in self._exported_top_level_symbols(doc):
+            if symbol.name == name:
+                return symbol
+        return None
+
+    def _module_imports_for_document(self, doc: DocumentState) -> dict[str, Path]:
+        if doc.last_parse is None:
+            return {}
+        imports: dict[str, Path] = {}
+        module_path = doc.path
+        if module_path is None:
+            module_path = self._uri_to_path(doc.uri)
+        if module_path is None:
+            return {}
+        if not isinstance(doc.last_parse, ast.Module):
+            return {}
+
+        for stmt in doc.last_parse.body:
+            if not (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Call)
+                and isinstance(stmt.value.func, ast.Name)
+                and len(stmt.value.args) == 2
+            ):
+                continue
+            call = stmt.value
+            alias = call.args[1]
+            if not isinstance(alias, ast.Constant) or not isinstance(alias.value, str):
+                continue
+            if call.func.id == FILE_IMPORT_SENTINEL:
+                raw_path = call.args[0]
+                if not isinstance(raw_path, ast.Constant) or not isinstance(
+                    raw_path.value, str
+                ):
+                    continue
+                resolved = (module_path.parent / raw_path.value).resolve()
+                imports[alias.value] = resolved
+            elif call.func.id == NATIVE_IMPORT_SENTINEL:
+                raw_target = call.args[0]
+                if not isinstance(raw_target, ast.Constant) or not isinstance(
+                    raw_target.value, str
+                ):
+                    continue
+                resolved = self._resolve_native_import_path(raw_target.value)
+                if resolved is not None:
+                    imports[alias.value] = resolved
+        return imports
+
+    def _resolve_native_import_path(self, raw: str) -> Path | None:
+        if self.workspace_root is None:
+            return None
+        relative = Path(*raw.split("/")).with_suffix(".ty")
+        candidates = [
+            (self.workspace_root / "src" / relative).resolve(),
+            (self.workspace_root / relative).resolve(),
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _attribute_completion_target(
+        self, line_text: str, character: int
+    ) -> tuple[str, str] | None:
+        prefix = line_text[: max(0, character)]
+        if not prefix:
+            return None
+        match = re.search(
+            r"(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.(?P<prefix>[A-Za-z_][A-Za-z0-9_]*)?$",
+            prefix,
+        )
+        if match is None:
+            return None
+        return match.group("base"), match.group("prefix") or ""
+
+    def _line_at(self, text: str, line: int) -> str | None:
+        lines = text.splitlines()
+        if line < 0 or line >= len(lines):
+            return None
+        return lines[line]
+
+    def _location_for_path(self, path: Path) -> JSONValue:
+        return {
+            "uri": path.resolve().as_uri(),
+            "range": {
+                "start": {"line": 0, "character": 0},
+                "end": {"line": 0, "character": 0},
+            },
+        }
+
+    def _symbol_to_completion_item(self, symbol: SemanticSymbol) -> JSONValue:
+        kind_map = {
+            "function": 3,
+            "method": 2,
+            "class": 7,
+            "record": 22,
+            "enum": 13,
+            "field": 5,
+            "constant": 21,
+            "variable": 6,
+        }
+        return {
+            "label": symbol.name,
+            "kind": kind_map.get(symbol.kind, 6),
+            "detail": symbol.detail or symbol.type_name or symbol.kind,
+        }
 
     def _document_from_params(self, params: Any) -> DocumentState | None:
         text_document = params.get("textDocument", {})

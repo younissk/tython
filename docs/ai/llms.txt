@@ -1,0 +1,25 @@
+Tython docs for AI tools.
+
+Core reading:
+- /index.md
+- /getting-started.md
+- /installation.md
+- /language/quickstart.md
+- /language/values-and-bindings.md
+- /language/expressions.md
+- /language/functions.md
+- /language/records-and-classes.md
+- /language/errors.md
+- /tooling/cli.md
+- /tooling/lsp.md
+- /tooling/vim-neovim.md
+- /reference/parser-pipeline.md
+- /reference/diagnostic-schema.md
+- /reference/error-codes.md
+
+Repo rules:
+- Keep parser API stable: `parse`, `parse_custom`, `lower`.
+- Keep grammar edits in `grammar/`.
+- Add tests for grammar changes across smoke and differential layers.
+- Keep docs strict and tied to compiler behavior.
+

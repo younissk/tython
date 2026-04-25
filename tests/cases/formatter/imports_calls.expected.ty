@@ -1,0 +1,6 @@
+import "./hello.ty" as hello
+
+const FISH = hello.Fish(name: "Tom")
+var note = "path ./hello.ty stays literal"
+
+FISH.hello(name: "jerry")

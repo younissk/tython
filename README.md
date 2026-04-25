@@ -1,6 +1,6 @@
-# Parser Playground
+# Tython
 
-This repository focuses on grammar experimentation and parser validation.
+This repository focuses on grammar experimentation, parser validation, and docs-driven language design.
 
 ## Layout
 
@@ -15,11 +15,27 @@ This repository focuses on grammar experimentation and parser validation.
   - includes a `User Collaboration Preferences` section for future chat behavior
 
 
-## Language Docs
+## Docs
 
-Tython documentation is organized as a language guide and reference:
+Docs are built with MkDocs Material.
+
+Preview locally:
+
+```bash
+uv run mkdocs serve
+```
+
+Build strict static site:
+
+```bash
+uv run mkdocs build --strict
+```
+
+Docs live under `docs/`:
 
 - `docs/index.md`
+- `docs/getting-started.md`
+- `docs/installation.md`
 - `docs/language/quickstart.md`
 - `docs/language/values-and-bindings.md`
 - `docs/language/expressions.md`
@@ -29,7 +45,13 @@ Tython documentation is organized as a language guide and reference:
 - `docs/language/enums.md`
 - `docs/language/records-and-classes.md`
 - `docs/language/errors.md`
+- `docs/tooling/cli.md`
+- `docs/tooling/lsp.md`
+- `docs/tooling/vim-neovim.md`
+- `docs/tooling/formatter.md`
 - `docs/reference/parser-pipeline.md`
+- `docs/reference/diagnostic-schema.md`
+- `docs/reference/error-codes.md`
 
 ## How testing works
 

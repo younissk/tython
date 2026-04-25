@@ -1,0 +1,3 @@
+func greet(name: str){ # say hi
+return  "hi, " + name # text
+}

@@ -46,14 +46,14 @@ Run tests:
 uv run python -m pytest
 ```
 
-Run a `.txt` or `.ty` file:
+Run a `.ty` file:
 
 ```bash
 uv run tython run input.ty
 ```
 
-Transpile `.txt` or `.ty` to Python:
+Transpile `.ty` to Python:
 
 ```bash
-uv run tython transpile input.txt --output output.py
+uv run tython transpile input.ty --output output.py
 ```

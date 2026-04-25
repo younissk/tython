@@ -47,8 +47,8 @@ Tython documentation is organized as a language guide and reference:
 4. Lowering (`tests/test_lowering.py`)
    - Verify custom IR lowers to expected Python AST.
 
-5. Runtime path (`tests/test_main_txt_runtime.py`)
-   - Verify `.txt` input goes through custom parse + lowering + execution.
+5. Runtime path (`tests/test_main_ty_runtime.py`)
+   - Verify `.ty` input goes through custom parse + lowering + execution.
 
 ## Run tests properly
 
@@ -199,7 +199,7 @@ tython --help
 
 ## Legacy Command Paths
 
-Legacy standalone `.txt`/single-file flows are removed in v1.
+Legacy standalone `.ty` single-file flows are the supported path in v1.
 Use project mode (`project.toml` + `src/` + `tython build/run`) instead.
 
 ## TODO

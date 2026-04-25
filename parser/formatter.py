@@ -39,14 +39,29 @@ def format_source(source: str) -> str:
 
     formatted: list[str] = []
     indent = 0
+    previous_rendered_nonblank = False
+    previous_ended_with_open_brace = False
 
-    for raw_line in lines:
+    for index, raw_line in enumerate(lines):
         line = raw_line.rstrip()
         code, comment = _split_trailing_comment(line)
         stripped = code.strip()
 
         if stripped == "" and comment == "":
+            if not previous_rendered_nonblank:
+                continue
+            if previous_rendered_nonblank and formatted and formatted[-1] == "":
+                continue
+            if previous_ended_with_open_brace:
+                continue
+            next_significant = _next_significant_line(lines, index + 1)
+            if next_significant is None:
+                continue
+            next_code, _next_comment = _split_trailing_comment(next_significant.rstrip())
+            if next_code.strip().startswith("}"):
+                continue
             formatted.append("")
+            previous_rendered_nonblank = False
             continue
 
         closing = 0
@@ -72,6 +87,8 @@ def format_source(source: str) -> str:
         if comment:
             rendered = f"{rendered} {comment}"
         formatted.append(rendered)
+        previous_rendered_nonblank = True
+        previous_ended_with_open_brace = opens_block
 
         if opens_block:
             indent += 1
@@ -100,6 +117,14 @@ def _split_trailing_comment(text: str) -> tuple[str, str]:
     except tokenize.TokenError:
         pass
     return text, ""
+
+
+def _next_significant_line(lines: list[str], start_index: int) -> str | None:
+    for line in lines[start_index:]:
+        code, comment = _split_trailing_comment(line.rstrip())
+        if code.strip() or comment:
+            return line
+    return None
 
 
 def _normalize_import_line(text: str) -> str | None:

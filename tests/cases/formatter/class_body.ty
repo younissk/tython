@@ -1,0 +1,10 @@
+class Fish {
+
+init const NAME: str
+
+pub func hello(name: str) -> none {
+
+print("Hello {name}, my name is {NAME}")
+}
+
+}

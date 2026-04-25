@@ -229,7 +229,8 @@ def test_lsp_install_vim_writes_plugin_files(tmp_path: Path) -> None:
 
     plugin_text = (plugin_root / "plugin" / "tython_lsp.vim").read_text()
     assert "LspAddServer" in plugin_text
-    assert "'tython', 'lsp', 'start'" in plugin_text
+    assert "findfile('pyproject.toml'" in plugin_text
+    assert "--directory" in plugin_text
 
 
 def test_lsp_install_nvim_writes_plugin_files(tmp_path: Path) -> None:
@@ -256,7 +257,10 @@ def test_lsp_install_nvim_writes_plugin_files(tmp_path: Path) -> None:
 
     plugin_text = (plugin_root / "plugin" / "tython_lsp.lua").read_text()
     assert "vim.lsp.enable('tython')" in plugin_text
+    assert "vim.lsp.buf.format" in plugin_text
     config_text = (plugin_root / "lsp" / "tython.lua").read_text()
+    assert "vim.fs.find('pyproject.toml'" in config_text
+    assert "--directory" in config_text
     assert "root_markers = { 'project.toml', '.git' }" in config_text
 
 
@@ -346,3 +350,143 @@ vim.cmd('qa!')
     )
 
     assert completed.returncode == 0, completed.stderr + completed.stdout
+
+
+@pytest.mark.skipif(shutil.which("nvim") is None, reason="nvim not installed")
+def test_nvim_headless_formats_on_save(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    uv_bin = shutil.which("uv")
+    assert uv_bin is not None
+
+    project_root = _write_project(tmp_path)
+    source_path = project_root / "src" / "main.ty"
+    source_path.write_text(
+        'import ". / hello.ty" as hello\n\nconst FISH  = hello.Fish(NAME  = "Tom")\n\nFISH.hello(name  = "jerry")\n'
+    )
+
+    pack_root = tmp_path / "pack"
+    install_result = runner.invoke(
+        app,
+        [
+            "lsp",
+            "install",
+            "nvim",
+            "--nvim-pack-root",
+            str(pack_root),
+        ],
+    )
+    assert install_result.exit_code == 0, install_result.output
+
+    init_path = tmp_path / "init.lua"
+    init_path.write_text(
+        """
+vim.g.tython_lsp_cmd = {{ {uv!r}, 'run', 'tython-lsp' }}
+vim.opt.runtimepath:prepend({package_root!r})
+vim.cmd('source ' .. vim.fn.fnameescape({ftdetect!r}))
+vim.cmd('luafile ' .. vim.fn.fnameescape({plugin!r}))
+vim.cmd('filetype plugin on')
+vim.cmd('edit ' .. vim.fn.fnameescape({source!r}))
+vim.wait(10000, function()
+  for _, client in ipairs(vim.lsp.get_clients({{ bufnr = 0 }})) do
+    if client.name == 'tython' then
+      return true
+    end
+  end
+  return false
+end, 50)
+assert(vim.bo.filetype == 'tython', 'unexpected filetype: ' .. vim.bo.filetype)
+vim.cmd('write')
+vim.cmd('qa!')
+""".format(
+            uv=uv_bin,
+            package_root=str(pack_root / "tython" / "start" / "tython-vim"),
+            ftdetect=str(
+                pack_root
+                / "tython"
+                / "start"
+                / "tython-vim"
+                / "ftdetect"
+                / "tython.vim"
+            ),
+            plugin=str(
+                pack_root
+                / "tython"
+                / "start"
+                / "tython-vim"
+                / "plugin"
+                / "tython_lsp.lua"
+            ),
+            source=str(source_path),
+        )
+    )
+
+    completed = subprocess.run(
+        ["nvim", "--headless", "-u", str(init_path)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr + completed.stdout
+    assert source_path.read_text() == (
+        'import "./hello.ty" as hello\n\nconst FISH = hello.Fish(NAME = "Tom")\n\n'
+        'FISH.hello(name = "jerry")\n\n'
+    )
+
+
+@pytest.mark.skipif(shutil.which("nvim") is None, reason="nvim not installed")
+def test_nvim_headless_formats_on_save_uses_checkout_cmd(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+
+    project_root = _write_project(tmp_path)
+    source_path = project_root / "src" / "hello.ty"
+    source_path.write_text(
+        "class Fish {\n\ninit const NAME: str\n  \n  pub func hello(name: str) -> none {\n\n"
+        'print("Hello {name}, my name is {NAME}")\n  }\n\n}\n'
+    )
+
+    init_path = tmp_path / "init.lua"
+    init_path.write_text(
+        """
+vim.opt.runtimepath:prepend({repo_root!r})
+vim.cmd('source ' .. vim.fn.fnameescape({ftdetect!r}))
+vim.cmd('luafile ' .. vim.fn.fnameescape({plugin!r}))
+vim.cmd('filetype plugin on')
+vim.cmd('edit ' .. vim.fn.fnameescape({source!r}))
+vim.wait(10000, function()
+  for _, client in ipairs(vim.lsp.get_clients({{ bufnr = 0 }})) do
+    if client.name == 'tython' then
+      return true
+    end
+  end
+  return false
+end, 50)
+assert(vim.bo.filetype == 'tython', 'unexpected filetype: ' .. vim.bo.filetype)
+vim.cmd('write')
+vim.cmd('qa!')
+""".format(
+            repo_root=str(repo_root),
+            ftdetect=str(repo_root / "tython-vim" / "ftdetect" / "tython.vim"),
+            plugin=str(repo_root / "tython-vim" / "plugin" / "tython_lsp.lua"),
+            source=str(source_path),
+        )
+    )
+
+    completed = subprocess.run(
+        ["nvim", "--headless", "-u", str(init_path)],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr + completed.stdout
+    assert source_path.read_text() == (
+        "class Fish {\n"
+        "    init const NAME: str\n\n"
+        "    pub func hello(name: str) -> none {\n"
+        '        print("Hello {name}, my name is {NAME}")\n'
+        "    }\n"
+        "}\n\n"
+    )

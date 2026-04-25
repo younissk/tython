@@ -73,7 +73,10 @@ function! s:RegisterTythonLsp() abort
 
   let l:cmd = get(g:, 'tython_lsp_cmd', [])
   if empty(l:cmd)
-    if executable('tython')
+    let l:pyproject = findfile('pyproject.toml', expand('<sfile>:p:h') . ';')
+    if !empty(l:pyproject) && executable('uv')
+      let l:cmd = ['uv', 'run', '--directory', fnamemodify(l:pyproject, ':h'), 'tython-lsp']
+    elseif executable('tython')
       let l:cmd = ['tython', 'lsp', 'start']
     elseif executable('tython-lsp')
       let l:cmd = ['tython-lsp']
@@ -131,15 +134,63 @@ local function enable_tython()
   vim.lsp.enable('tython')
 end
 
+local group = vim.api.nvim_create_augroup('tython_nvim_lsp', { clear = true })
+
 vim.api.nvim_create_autocmd('FileType', {
+  group = group,
   pattern = 'tython',
   callback = enable_tython,
+})
+
+vim.api.nvim_create_autocmd('LspAttach', {
+  group = group,
+  callback = function(args)
+    local client = vim.lsp.get_client_by_id(args.data.client_id)
+    if not client or client.name ~= 'tython' then
+      return
+    end
+
+    vim.api.nvim_create_autocmd('BufWritePre', {
+      group = group,
+      buffer = args.buf,
+      callback = function()
+        vim.lsp.buf.format({
+          async = false,
+          timeout_ms = 5000,
+          filter = function(format_client)
+            return format_client.name == 'tython'
+          end,
+        })
+      end,
+    })
+  end,
 })
 
 vim.schedule(enable_tython)
 """
 
-_NVIM_LSP_CONFIG = """local function default_cmd()
+_NVIM_LSP_CONFIG = """local function checkout_root()
+  local source = debug.getinfo(1, 'S').source
+  if type(source) ~= 'string' or source:sub(1, 1) ~= '@' then
+    return nil
+  end
+
+  local plugin_file = source:sub(2)
+  local pyproject = vim.fs.find('pyproject.toml', {
+    path = vim.fs.dirname(plugin_file),
+    upward = true,
+  })[1]
+  if pyproject == nil then
+    return nil
+  end
+  return vim.fs.dirname(pyproject)
+end
+
+local function default_cmd()
+  local repo_root = checkout_root()
+  if repo_root ~= nil and vim.fn.executable('uv') == 1 then
+    return { 'uv', 'run', '--directory', repo_root, 'tython-lsp' }
+  end
   if vim.fn.executable('tython') == 1 then
     return { 'tython', 'lsp', 'start' }
   end

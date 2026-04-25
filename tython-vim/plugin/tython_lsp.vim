@@ -18,7 +18,10 @@ function! s:RegisterTythonLsp() abort
 
   let l:cmd = get(g:, 'tython_lsp_cmd', [])
   if empty(l:cmd)
-    if executable('tython')
+    let l:pyproject = findfile('pyproject.toml', expand('<sfile>:p:h') . ';')
+    if !empty(l:pyproject) && executable('uv')
+      let l:cmd = ['uv', 'run', '--directory', fnamemodify(l:pyproject, ':h'), 'tython-lsp']
+    elseif executable('tython')
       let l:cmd = ['tython', 'lsp', 'start']
     elseif executable('tython-lsp')
       let l:cmd = ['tython-lsp']

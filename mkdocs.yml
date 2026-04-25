@@ -6,7 +6,14 @@ repo_name: younissk/tython
 docs_dir: docs
 site_dir: site
 
-theme: shadcn
+theme:
+  name: shadcn
+  show_title: true
+  show_stargazers: true
+  topbar_sections: false
+  pygments_style:
+    light: shadcn-light
+    dark: github-dark
 
 plugins:
   - search

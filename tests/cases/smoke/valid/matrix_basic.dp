@@ -1,0 +1,9 @@
+var v = Matrix([1, 2, 3])
+var a = Matrix([[1, 2], [3, 4]])
+var total = a.sum()
+var axis0 = a.sum(axis: 0)
+var row = a[0]
+var entry = a[0, 1]
+var scaled = 2 * a
+var product = a @ a
+var shape = a.shape

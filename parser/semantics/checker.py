@@ -25,6 +25,9 @@ from .constants import (
     BUILTIN_NAMES,
     CONST_NAME_RE,
     IDENTIFIER_RE,
+    MATRIX_BUILTIN_NAME,
+    MATRIX_METHODS,
+    MATRIX_PROPERTIES,
     PRIMITIVE_TYPES,
     RESERVED_WORDS,
     TYPE_NAME_RE,
@@ -80,6 +83,7 @@ class SemanticChecker:
         self._current_class_member_map: dict[str, ClassMemberDecl] = {}
         self._throws_stack: list[set[str]] = []
         self._try_context_stack: list[TryContext] = []
+        self._matrix_expr_info: dict[int, tuple[int | None, str | None]] = {}
         for builtin in BUILTIN_NAMES:
             self._scopes[0].symbols[builtin] = Symbol(
                 name=builtin,
@@ -96,6 +100,7 @@ class SemanticChecker:
         if not isinstance(tree, ast.Module):
             raise SyntaxError(err("E2001", 1, "custom parser expects module input"))
         self._analysis = SemanticAnalysis()
+        self._matrix_expr_info = {}
         self._check_statements(tree.body)
 
     @property
@@ -1782,6 +1787,10 @@ class SemanticChecker:
                 require_initialized=True,
                 location=(expr.lineno, expr.col_offset + 1),
             )
+            matrix_rank, matrix_element_type = self._matrix_info_for_symbol(symbol)
+            self._set_matrix_expr_info(
+                expr, matrix_rank=matrix_rank, matrix_element_type=matrix_element_type
+            )
             return symbol.type_name
 
         if self._is_record_literal_expr(expr):
@@ -1893,6 +1902,58 @@ class SemanticChecker:
 
         if isinstance(expr, ast.Attribute):
             value_type = self._check_expression(expr.value)
+            if value_type == "Matrix":
+                matrix_rank, matrix_element_type = self._matrix_info_for_expr(
+                    expr.value
+                )
+                if expr.attr in MATRIX_PROPERTIES:
+                    if expr.attr == "rows" or expr.attr == "cols":
+                        if matrix_rank == 1:
+                            raise SyntaxError(
+                                err(
+                                    "E2150",
+                                    expr.lineno,
+                                    f".{expr.attr} only works on rank-2 Matrix values",
+                                    f"This Matrix has rank {matrix_rank}.",
+                                )
+                            )
+                    if expr.attr == "shape":
+                        self._set_matrix_expr_info(
+                            expr, matrix_rank=None, matrix_element_type=None
+                        )
+                        return "int[]"
+                    if expr.attr == "rank":
+                        self._set_matrix_expr_info(
+                            expr, matrix_rank=None, matrix_element_type=None
+                        )
+                        return "int"
+                    if expr.attr in {"rows", "cols"}:
+                        self._set_matrix_expr_info(
+                            expr, matrix_rank=None, matrix_element_type=None
+                        )
+                        return "int"
+                    if expr.attr == "dtype":
+                        self._set_matrix_expr_info(
+                            expr, matrix_rank=None, matrix_element_type=None
+                        )
+                        return "str"
+                if expr.attr in MATRIX_METHODS:
+                    raise SyntaxError(
+                        err(
+                            "E2150",
+                            expr.lineno,
+                            f"Matrix.{expr.attr} must be called as a method",
+                            f"Use Matrix.{expr.attr}(...).",
+                        )
+                    )
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        f"Matrix has no member '{expr.attr}'",
+                        "Use Matrix methods and properties only.",
+                    )
+                )
             class_decl = self._class_decls.get(value_type or "")
             if class_decl is not None:
                 if expr.attr in class_decl.methods:
@@ -2003,6 +2064,175 @@ class SemanticChecker:
     def _check_binop(self, expr: ast.BinOp) -> str | None:
         left = self._check_expression(expr.left)
         right = self._check_expression(expr.right)
+        left_matrix_rank, left_matrix_element_type = self._matrix_info_for_expr(
+            expr.left
+        )
+        right_matrix_rank, right_matrix_element_type = self._matrix_info_for_expr(
+            expr.right
+        )
+        left_is_matrix = left == "Matrix"
+        right_is_matrix = right == "Matrix"
+
+        if left_is_matrix or right_is_matrix:
+            if isinstance(expr.op, ast.Add):
+                if not (left_is_matrix and right_is_matrix):
+                    raise SyntaxError(
+                        err(
+                            "E2047",
+                            expr.lineno,
+                            "Matrix + requires another Matrix",
+                            "Use Matrix + Matrix for matrix addition.",
+                        )
+                    )
+                self._require_same_matrix_rank(
+                    left_matrix_rank, right_matrix_rank, expr.lineno, "+"
+                )
+                result_element_type = self._promote_numeric_types(
+                    left_matrix_element_type, right_matrix_element_type
+                )
+                self._set_matrix_expr_info(
+                    expr,
+                    matrix_rank=left_matrix_rank or right_matrix_rank,
+                    matrix_element_type=result_element_type,
+                )
+                return "Matrix"
+
+            if isinstance(expr.op, ast.Sub):
+                if not (left_is_matrix and right_is_matrix):
+                    raise SyntaxError(
+                        err(
+                            "E2047",
+                            expr.lineno,
+                            "Matrix - requires another Matrix",
+                            "Use Matrix - Matrix for matrix subtraction.",
+                        )
+                    )
+                self._require_same_matrix_rank(
+                    left_matrix_rank, right_matrix_rank, expr.lineno, "-"
+                )
+                result_element_type = self._promote_numeric_types(
+                    left_matrix_element_type, right_matrix_element_type
+                )
+                self._set_matrix_expr_info(
+                    expr,
+                    matrix_rank=left_matrix_rank or right_matrix_rank,
+                    matrix_element_type=result_element_type,
+                )
+                return "Matrix"
+
+            if isinstance(expr.op, ast.Mult):
+                if left_is_matrix and right_is_matrix:
+                    raise SyntaxError(
+                        err(
+                            "E2047",
+                            expr.lineno,
+                            "Matrix * Matrix is not allowed",
+                            "Use Matrix @ Matrix for matrix multiplication, or Matrix.hadamard(Matrix) for element-wise multiplication.",
+                        )
+                    )
+                if left_is_matrix:
+                    if right not in {"int", "float"}:
+                        raise SyntaxError(
+                            err(
+                                "E2047",
+                                expr.lineno,
+                                "Matrix * requires a numeric scalar",
+                                "Use Matrix * int or Matrix * float.",
+                            )
+                        )
+                    matrix_rank = left_matrix_rank
+                    matrix_element_type = self._promote_numeric_types(
+                        left_matrix_element_type, right
+                    )
+                else:
+                    if left not in {"int", "float"}:
+                        raise SyntaxError(
+                            err(
+                                "E2047",
+                                expr.lineno,
+                                "scalar * Matrix requires a numeric scalar",
+                                "Use int * Matrix or float * Matrix.",
+                            )
+                        )
+                    matrix_rank = right_matrix_rank
+                    matrix_element_type = self._promote_numeric_types(
+                        left, right_matrix_element_type
+                    )
+                self._set_matrix_expr_info(
+                    expr,
+                    matrix_rank=matrix_rank,
+                    matrix_element_type=matrix_element_type,
+                )
+                return "Matrix"
+
+            if isinstance(expr.op, ast.Div):
+                if left_is_matrix and right_is_matrix:
+                    raise SyntaxError(
+                        err(
+                            "E2047",
+                            expr.lineno,
+                            "Matrix / Matrix is not allowed",
+                            "Use Matrix / scalar for scalar division.",
+                        )
+                    )
+                if not left_is_matrix:
+                    raise SyntaxError(
+                        err(
+                            "E2047",
+                            expr.lineno,
+                            "scalar / Matrix is not allowed",
+                            "Use Matrix / scalar instead.",
+                        )
+                    )
+                if right not in {"int", "float"}:
+                    raise SyntaxError(
+                        err(
+                            "E2047",
+                            expr.lineno,
+                            "Matrix / requires a numeric scalar",
+                            "Use Matrix / int or Matrix / float.",
+                        )
+                    )
+                matrix_rank = left_matrix_rank
+                self._set_matrix_expr_info(
+                    expr,
+                    matrix_rank=matrix_rank,
+                    matrix_element_type="float",
+                )
+                return "Matrix"
+
+            if isinstance(expr.op, ast.MatMult):
+                if not (left_is_matrix and right_is_matrix):
+                    raise SyntaxError(
+                        err(
+                            "E2047",
+                            expr.lineno,
+                            "Matrix @ requires another Matrix",
+                            "Use Matrix @ Matrix for matrix multiplication.",
+                        )
+                    )
+                result_type, result_rank, result_element_type = self._matrix_matmul_result(
+                    left_matrix_rank,
+                    left_matrix_element_type,
+                    right_matrix_rank,
+                    right_matrix_element_type,
+                )
+                if result_type == "Matrix":
+                    self._set_matrix_expr_info(
+                        expr,
+                        matrix_rank=result_rank,
+                        matrix_element_type=result_element_type,
+                    )
+                return result_type
+
+            raise SyntaxError(
+                err(
+                    "E2047",
+                    expr.lineno,
+                    f"Matrix does not support {type(expr.op).__name__}",
+                    "Use Matrix +, -, @, *, /, or Matrix.hadamard().",
+                )
+            )
 
         if isinstance(expr.op, ast.Add):
             if left == "str" and right == "str":
@@ -2136,7 +2366,8 @@ class SemanticChecker:
             self._check_expression(expr.args[0])
             return "none", set()
 
-        self._check_expression(expr.func)
+        if isinstance(expr.func, ast.Name) and expr.func.id == MATRIX_BUILTIN_NAME:
+            return self._check_matrix_constructor_call(expr), set()
 
         if isinstance(expr.func, ast.Attribute) and expr.func.attr in {
             "setup",
@@ -2160,6 +2391,49 @@ class SemanticChecker:
                     "Use either all positional or all named arguments.",
                 )
             )
+
+        if isinstance(expr.func, ast.Attribute):
+            owner_type = self._check_expression(expr.func.value)
+            if owner_type == "Matrix":
+                result_type, result_rank, result_element_type = self._check_matrix_method_call(
+                    expr, expr.func.value, expr.func.attr
+                )
+                if result_type == "Matrix":
+                    self._set_matrix_expr_info(
+                        expr,
+                        matrix_rank=result_rank,
+                        matrix_element_type=result_element_type,
+                    )
+                return result_type, set()
+
+            class_decl = self._class_decls.get(owner_type or "")
+            signature = class_decl.methods.get(expr.func.attr) if class_decl else None
+            if signature is not None:
+                self._record_reference(
+                    name=expr.func.attr,
+                    qualified_name=f"{class_decl.name}.{expr.func.attr}",
+                    location=self._attribute_location(expr.func),
+                    kind="call",
+                )
+                if expr.args:
+                    self._check_positional_call(expr, signature)
+                else:
+                    self._check_named_call(expr, signature)
+                thrown = set(signature.throws)
+                if (
+                    enforce_checked_throws
+                    and thrown
+                    and not self._is_throw_set_handled_in_try_context(thrown)
+                ):
+                    raise SyntaxError(
+                        err(
+                            "E2192",
+                            expr.lineno,
+                            f"call to throwing method '{expr.func.attr}' must be handled",
+                            "Wrap call in try/catch or use `try method(...)` in a throws-compatible function.",
+                        )
+                    )
+                return signature.return_type, thrown
 
         if isinstance(expr.func, ast.Name):
             if expr.func.id == "len":
@@ -2225,37 +2499,6 @@ class SemanticChecker:
             for kw in expr.keywords:
                 self._check_expression(kw.value)
             return None, set()
-
-        if isinstance(expr.func, ast.Attribute):
-            owner_type = self._check_expression(expr.func.value)
-            class_decl = self._class_decls.get(owner_type or "")
-            signature = class_decl.methods.get(expr.func.attr) if class_decl else None
-            if signature is not None:
-                self._record_reference(
-                    name=expr.func.attr,
-                    qualified_name=f"{class_decl.name}.{expr.func.attr}",
-                    location=self._attribute_location(expr.func),
-                    kind="call",
-                )
-                if expr.args:
-                    self._check_positional_call(expr, signature)
-                else:
-                    self._check_named_call(expr, signature)
-                thrown = set(signature.throws)
-                if (
-                    enforce_checked_throws
-                    and thrown
-                    and not self._is_throw_set_handled_in_try_context(thrown)
-                ):
-                    raise SyntaxError(
-                        err(
-                            "E2192",
-                            expr.lineno,
-                            f"call to throwing method '{expr.func.attr}' must be handled",
-                            "Wrap call in try/catch or use `try method(...)` in a throws-compatible function.",
-                        )
-                    )
-                return signature.return_type, thrown
 
         for arg in expr.args:
             self._check_expression(arg)
@@ -2424,6 +2667,109 @@ class SemanticChecker:
 
     def _check_subscript(self, expr: ast.Subscript) -> str | None:
         value_type = self._check_expression(expr.value)
+        matrix_rank, matrix_element_type = self._matrix_info_for_expr(expr.value)
+
+        if value_type == "Matrix":
+            if isinstance(expr.slice, ast.Slice):
+                raise SyntaxError(
+                    err(
+                        "E2053",
+                        expr.lineno,
+                        "slice expressions are not supported",
+                        "Use Matrix[i] or Matrix[i, j] with integer indexes only.",
+                    )
+                )
+
+            if isinstance(expr.slice, ast.Tuple):
+                if len(expr.slice.elts) != 2:
+                    raise SyntaxError(
+                        err(
+                            "E2053",
+                            expr.lineno,
+                            "Matrix tuple indexing requires exactly two indexes",
+                            "Use Matrix[i, j] for two-dimensional lookup.",
+                        )
+                    )
+                if matrix_rank == 1:
+                    raise SyntaxError(
+                        err(
+                            "E2150",
+                            expr.lineno,
+                            "Matrix[i, j] only works on rank-2 Matrix values",
+                            "Use a rank-2 Matrix before two-dimensional indexing.",
+                        )
+                    )
+
+                for index_expr in expr.slice.elts:
+                    index_type = self._check_expression(index_expr)
+                    if index_type != "int":
+                        raise SyntaxError(
+                            err(
+                                "E2054",
+                                expr.lineno,
+                                "index expression must be int",
+                                "Use integer indexes only.",
+                            )
+                        )
+                    if (
+                        isinstance(index_expr, ast.Constant)
+                        and isinstance(index_expr.value, int)
+                        and index_expr.value < 0
+                    ):
+                        raise SyntaxError(
+                            err(
+                                "E2055",
+                                expr.lineno,
+                                "negative indexes are not supported",
+                                "Use a non-negative index.",
+                            )
+                        )
+
+                result_type = matrix_element_type or "float"
+                self._set_matrix_expr_info(
+                    expr, matrix_rank=None, matrix_element_type=None
+                )
+                return result_type
+
+            index_type = self._check_expression(expr.slice)
+            if index_type != "int":
+                raise SyntaxError(
+                    err(
+                        "E2054",
+                        expr.lineno,
+                        "index expression must be int",
+                        "Use an integer index expression.",
+                    )
+                )
+
+            literal_index = extract_int_literal(expr.slice)
+            if literal_index is not None and literal_index < 0:
+                raise SyntaxError(
+                    err(
+                        "E2055",
+                        expr.lineno,
+                        "negative indexes are not supported",
+                        "Use a non-negative index.",
+                    )
+                )
+
+            if matrix_rank == 2:
+                self._set_matrix_expr_info(
+                    expr,
+                    matrix_rank=1,
+                    matrix_element_type=matrix_element_type,
+                )
+                return "Matrix"
+            if matrix_rank == 1:
+                self._set_matrix_expr_info(
+                    expr, matrix_rank=None, matrix_element_type=None
+                )
+                return matrix_element_type or "float"
+
+            self._set_matrix_expr_info(
+                expr, matrix_rank=None, matrix_element_type=None
+            )
+            return "Matrix"
 
         if isinstance(expr.slice, ast.Slice):
             raise SyntaxError(
@@ -2800,6 +3146,12 @@ class SemanticChecker:
             if decl.has_initializer and decl.initializer is not None
             else None
         )
+        matrix_rank = None
+        matrix_element_type = None
+        if inferred == "Matrix" and decl.initializer is not None:
+            matrix_rank, matrix_element_type = self._matrix_info_for_expr(
+                decl.initializer
+            )
         if decl.type_annotation is not None and not self._is_type_compatible(
             decl.type_annotation, inferred
         ):
@@ -2822,6 +3174,8 @@ class SemanticChecker:
             location=decl.location,
             symbol_kind="constant" if decl.kind == "const" else "variable",
             is_public=decl.is_public,
+            matrix_rank=matrix_rank,
+            matrix_element_type=matrix_element_type,
         )
 
     def _check_assignment_target(self, assignment: Assignment) -> None:
@@ -2867,6 +3221,14 @@ class SemanticChecker:
                 )
             )
 
+        if symbol.type_name == "Matrix":
+            matrix_rank, matrix_element_type = self._matrix_info_for_expr(
+                assignment.value
+            )
+            if matrix_rank is not None or matrix_element_type is not None:
+                symbol.matrix_rank = matrix_rank
+                symbol.matrix_element_type = matrix_element_type
+
         symbol.initialized = True
 
     def _declare_name(
@@ -2880,6 +3242,8 @@ class SemanticChecker:
         location: tuple[int, int] | None = None,
         symbol_kind: str | None = None,
         is_public: bool = False,
+        matrix_rank: int | None = None,
+        matrix_element_type: str | None = None,
     ) -> None:
         scope = self._scopes[-1]
         if name in scope.symbols:
@@ -2917,6 +3281,8 @@ class SemanticChecker:
             col_offset=(location[1] if location is not None else 1),
             function_id=self._current_function_id(),
             initialized=initialized,
+            matrix_rank=matrix_rank,
+            matrix_element_type=matrix_element_type,
             is_public=is_public,
         )
         self._record_symbol(
@@ -2968,6 +3334,19 @@ class SemanticChecker:
                     "Declare it first with `var` or `const`.",
                 )
             )
+
+        if self._current_class_name is not None:
+            member = self._current_class_member_map.get(name)
+            if member is not None:
+                raise SyntaxError(
+                    err(
+                        "E2024",
+                        lineno,
+                        f"use of undeclared name '{name}'",
+                        f"Did you mean `this.{name}`?",
+                    )
+                )
+
         raise SyntaxError(
             err(
                 "E2024",
@@ -3281,6 +3660,358 @@ class SemanticChecker:
             qualified_name, []
         ).append(reference)
         self._analysis.references_by_name.setdefault(name, []).append(reference)
+
+    def _set_matrix_expr_info(
+        self,
+        expr: ast.AST,
+        *,
+        matrix_rank: int | None,
+        matrix_element_type: str | None,
+    ) -> None:
+        self._matrix_expr_info[id(expr)] = (matrix_rank, matrix_element_type)
+
+    def _lookup_symbol(self, name: str) -> Symbol | None:
+        for scope in reversed(self._scopes):
+            symbol = scope.symbols.get(name)
+            if symbol is not None:
+                return symbol
+        return None
+
+    def _matrix_info_for_symbol(
+        self, symbol: Symbol
+    ) -> tuple[int | None, str | None]:
+        if (
+            symbol.type_name != MATRIX_BUILTIN_NAME
+            and symbol.matrix_rank is None
+            and symbol.matrix_element_type is None
+        ):
+            return None, None
+        return symbol.matrix_rank, symbol.matrix_element_type
+
+    def _matrix_info_for_expr(self, expr: ast.AST) -> tuple[int | None, str | None]:
+        info = self._matrix_expr_info.get(id(expr))
+        if info is not None:
+            return info
+        if isinstance(expr, ast.Name):
+            symbol = self._lookup_symbol(expr.id)
+            if symbol is not None:
+                return self._matrix_info_for_symbol(symbol)
+        return None, None
+
+    def _matrix_constructor_info(
+        self, type_name: str | None, lineno: int
+    ) -> tuple[int | None, str | None]:
+        if type_name is None:
+            raise SyntaxError(
+                err(
+                    "E2150",
+                    lineno,
+                    "Matrix constructor expects a list or nested list",
+                    "Use Matrix([1, 2, 3]) or Matrix([[1, 2], [3, 4]]).",
+                )
+            )
+
+        if type_name == MATRIX_BUILTIN_NAME:
+            raise SyntaxError(
+                err(
+                    "E2150",
+                    lineno,
+                    "Matrix constructor expects list data, not Matrix",
+                    "Pass a list or nested list to Matrix(...).",
+                )
+            )
+
+        base = type_name
+        rank = 0
+        while base.endswith("[]"):
+            rank += 1
+            base = base[:-2]
+
+        if rank not in {1, 2}:
+            raise SyntaxError(
+                err(
+                    "E2150",
+                    lineno,
+                    "Matrix supports only rank-1 or rank-2 data",
+                    "Use a one-dimensional list or a list of rows.",
+                )
+            )
+
+        if base == "unknown":
+            return rank, None
+
+        if base not in {"int", "float"}:
+            raise SyntaxError(
+                err(
+                    "E2150",
+                    lineno,
+                    "Matrix data must be numeric",
+                    "Use int[] or float[] values only.",
+                )
+            )
+
+        return rank, base
+
+    def _promote_numeric_types(
+        self, left: str | None, right: str | None
+    ) -> str | None:
+        if left == "float" or right == "float":
+            return "float"
+        if left == "int" or right == "int":
+            return "int"
+        return left or right
+
+    def _require_same_matrix_rank(
+        self,
+        left_rank: int | None,
+        right_rank: int | None,
+        lineno: int,
+        operator: str,
+    ) -> None:
+        if (
+            left_rank is not None
+            and right_rank is not None
+            and left_rank != right_rank
+        ):
+            raise SyntaxError(
+                err(
+                    "E2047",
+                    lineno,
+                    f"Matrix {operator} requires matching ranks",
+                    f"Got rank {left_rank} and rank {right_rank}.",
+                )
+            )
+
+    def _check_matrix_constructor_call(self, expr: ast.Call) -> str:
+        if len(expr.args) != 1 or expr.keywords:
+            raise SyntaxError(
+                err(
+                    "E2150",
+                    expr.lineno,
+                    "Matrix constructor takes exactly one positional argument",
+                    "Use Matrix(data) in v1.",
+                )
+            )
+
+        arg_type = self._check_expression(expr.args[0])
+        matrix_rank, matrix_element_type = self._matrix_constructor_info(
+            arg_type, expr.lineno
+        )
+        self._set_matrix_expr_info(
+            expr,
+            matrix_rank=matrix_rank,
+            matrix_element_type=matrix_element_type,
+        )
+        return MATRIX_BUILTIN_NAME
+
+    def _check_matrix_method_call(
+        self, expr: ast.Call, owner_expr: ast.expr, method_name: str
+    ) -> tuple[str | None, int | None, str | None]:
+        if method_name not in MATRIX_METHODS:
+            raise SyntaxError(
+                err(
+                    "E2150",
+                    expr.lineno,
+                    f"Matrix has no method '{method_name}'",
+                    "Use Matrix methods like sum, mean, transpose, inverse, determinant, norm, solve, or hadamard.",
+                )
+            )
+
+        owner_rank, owner_element_type = self._matrix_info_for_expr(owner_expr)
+
+        if method_name in {"sum", "mean", "min", "max"}:
+            if len(expr.args) > 0:
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        f"Matrix.{method_name} expects named axis only",
+                        "Use Matrix.method(axis: 0) or Matrix.method().",
+                    )
+                )
+
+            if expr.keywords:
+                if len(expr.keywords) != 1 or expr.keywords[0].arg != "axis":
+                    raise SyntaxError(
+                        err(
+                            "E2150",
+                            expr.lineno,
+                            f"Matrix.{method_name} supports only axis",
+                            "Use Matrix.method(axis: 0) or Matrix.method().",
+                        )
+                    )
+                axis_type = self._check_expression(expr.keywords[0].value)
+                if axis_type != "int":
+                    raise SyntaxError(
+                        err(
+                            "E2054",
+                            expr.lineno,
+                            "axis expression must be int",
+                            "Use axis: 0 or axis: 1.",
+                        )
+                    )
+                if (
+                    (axis_value := extract_int_literal(expr.keywords[0].value))
+                    is not None
+                    and axis_value not in {0, 1}
+                ):
+                    raise SyntaxError(
+                        err(
+                            "E2150",
+                            expr.lineno,
+                            "Matrix axis must be 0 or 1",
+                            "Use axis: 0 or axis: 1.",
+                        )
+                    )
+                if owner_rank == 1:
+                    raise SyntaxError(
+                        err(
+                            "E2150",
+                            expr.lineno,
+                            f"Matrix.{method_name}(axis=...) only works on rank-2 Matrix values",
+                            "Use Matrix.method() on vectors instead.",
+                        )
+                    )
+
+                result_element_type = (
+                    "float" if method_name == "mean" else owner_element_type
+                )
+                return "Matrix", 1, result_element_type
+
+            result_element_type = (
+                "float"
+                if method_name == "mean"
+                else (owner_element_type or "float")
+            )
+            return result_element_type, None, None
+
+        if method_name == "transpose":
+            if expr.args or expr.keywords:
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        "Matrix.transpose takes no arguments",
+                        "Use Matrix.transpose().",
+                    )
+                )
+            return "Matrix", owner_rank, owner_element_type
+
+        if method_name in {"inverse", "determinant", "norm"}:
+            if expr.args or expr.keywords:
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        f"Matrix.{method_name} takes no arguments",
+                        f"Use Matrix.{method_name}().",
+                    )
+                )
+            if method_name in {"inverse", "determinant"} and owner_rank == 1:
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        f"Matrix.{method_name} only works on rank-2 Matrix values",
+                        "Use a rank-2 Matrix.",
+                    )
+                )
+            if method_name == "inverse":
+                return "Matrix", owner_rank, "float"
+            return "float", None, None
+
+        if method_name == "solve":
+            if expr.keywords or len(expr.args) != 1:
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        "Matrix.solve expects exactly one Matrix argument",
+                        "Use Matrix.solve(b).",
+                    )
+                )
+            if owner_rank == 1:
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        "Matrix.solve only works on rank-2 Matrix values",
+                        "Use a rank-2 Matrix on the left side.",
+                    )
+                )
+            rhs_type = self._check_expression(expr.args[0])
+            if rhs_type != "Matrix":
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        "Matrix.solve expects another Matrix",
+                        "Pass a Matrix right-hand side.",
+                    )
+                )
+            rhs_rank, _rhs_element_type = self._matrix_info_for_expr(expr.args[0])
+            return "Matrix", rhs_rank, "float"
+
+        if method_name == "hadamard":
+            if expr.keywords or len(expr.args) != 1:
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        "Matrix.hadamard expects exactly one Matrix argument",
+                        "Use Matrix.hadamard(other).",
+                    )
+                )
+            rhs_type = self._check_expression(expr.args[0])
+            if rhs_type != "Matrix":
+                raise SyntaxError(
+                    err(
+                        "E2150",
+                        expr.lineno,
+                        "Matrix.hadamard expects another Matrix",
+                        "Pass a Matrix right-hand side.",
+                    )
+                )
+            rhs_rank, rhs_element_type = self._matrix_info_for_expr(expr.args[0])
+            self._require_same_matrix_rank(
+                owner_rank, rhs_rank, expr.lineno, ".hadamard"
+            )
+            return "Matrix", owner_rank, self._promote_numeric_types(
+                owner_element_type, rhs_element_type
+            )
+
+        raise SyntaxError(
+            err(
+                "E2150",
+                expr.lineno,
+                f"Matrix has no method '{method_name}'",
+                "Use Matrix methods only.",
+            )
+        )
+
+    def _matrix_matmul_result(
+        self,
+        left_rank: int | None,
+        left_element_type: str | None,
+        right_rank: int | None,
+        right_element_type: str | None,
+    ) -> tuple[str, int | None, str | None]:
+        result_element_type = self._promote_numeric_types(
+            left_element_type, right_element_type
+        )
+
+        if left_rank == 1 and right_rank == 1:
+            return result_element_type or "float", None, None
+
+        if left_rank == 2 and right_rank == 2:
+            return "Matrix", 2, result_element_type
+
+        if (left_rank == 2 and right_rank == 1) or (
+            left_rank == 1 and right_rank == 2
+        ):
+            return "Matrix", 1, result_element_type
+
+        return "Matrix", left_rank or right_rank, result_element_type
 
     def _validate_type_name(self, type_name: str, lineno: int) -> None:
         for atom in iter_type_atoms(type_name, lineno):

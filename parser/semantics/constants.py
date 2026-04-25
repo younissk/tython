@@ -29,5 +29,20 @@ RESERVED_WORDS = {
     "str",
 }
 
-BUILTIN_NAMES = {"print", "len", "range", "panic"}
+BUILTIN_NAMES = {"print", "len", "range", "panic", "Matrix"}
 PRIMITIVE_TYPES = {"int", "float", "bool", "str", "none"}
+
+MATRIX_BUILTIN_NAME = "Matrix"
+MATRIX_METHODS = {
+    "sum",
+    "mean",
+    "min",
+    "max",
+    "transpose",
+    "inverse",
+    "determinant",
+    "norm",
+    "solve",
+    "hadamard",
+}
+MATRIX_PROPERTIES = {"shape", "rank", "rows", "cols", "dtype"}

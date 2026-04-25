@@ -243,6 +243,25 @@ def test_error_for_manual_setup_call() -> None:
     assert "setup cannot be called manually" in message
 
 
+def test_error_for_bare_class_member_use_suggests_this() -> None:
+    source = (
+        "class Fish {\n"
+        "    init const NAME: str\n"
+        "\n"
+        "    pub func hello(name: str) -> none {\n"
+        '        print(f"Hello {name}, my name is {NAME}")\n'
+        "    }\n"
+        "}\n"
+    )
+    with pytest.raises(SyntaxError) as exc:
+        parse_custom(source)
+
+    message = str(exc.value)
+    assert "[E2024]" in message
+    assert "use of undeclared name 'NAME'" in message
+    assert "Did you mean `this.NAME`?" in message
+
+
 def test_error_for_private_method_record_conformance() -> None:
     source = (
         "record Animal {\n"

@@ -45,6 +45,7 @@ tests/test_lowering.py
 tests/test_lsp.py
 tests/test_main_transpile.py
 tests/test_main_ty_runtime.py
+tests/test_matrix_runtime.py
 tests/test_smoke.py
 tython.egg-info/PKG-INFO
 tython.egg-info/SOURCES.txt
@@ -52,3 +53,5 @@ tython.egg-info/dependency_links.txt
 tython.egg-info/entry_points.txt
 tython.egg-info/requires.txt
 tython.egg-info/top_level.txt
+tython_std/__init__.py
+tython_std/matrix.py

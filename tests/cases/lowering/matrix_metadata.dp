@@ -1,0 +1,5 @@
+var a = Matrix([[1, 2], [3, 4]])
+var shape = a.shape
+var dtype = a.dtype
+var rows = a.rows
+var cols = a.cols

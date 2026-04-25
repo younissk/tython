@@ -10,6 +10,7 @@ Supported primary expression forms:
 - Identifiers: `count`, `user_name`
 - Parenthesized expressions: `(a + b)`
 - List literals: `[1, 2, 3]`
+- Matrix literals via constructor: `Matrix([1, 2, 3])`
 - Calls: `add(1, 2)`
 - Field access: `user.name`
 - Indexing: `items[0]`
@@ -145,6 +146,8 @@ Tython indexing is strict:
 - index expression must be `int`
 - negative indexes are rejected when statically known
 - slicing is not supported (`items[1:3]` is invalid)
+
+See [Matrix](matrix.md) for Matrix-specific indexing, methods, and operator rules.
 
 ## Precedence
 

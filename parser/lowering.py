@@ -41,6 +41,7 @@ class _LowerCustomIR(ast.NodeTransformer):
     ) -> None:
         self._needs_enum_import = False
         self._needs_dataclass_import = False
+        self._needs_matrix_import = False
         self._needs_recoverable_base = False
         self._uses_panic = False
         self._thrown_record_types: set[str] = set()
@@ -75,6 +76,17 @@ class _LowerCustomIR(ast.NodeTransformer):
                 ast.ImportFrom(
                     module="dataclasses",
                     names=[ast.alias(name="dataclass", asname=None)],
+                    level=0,
+                ),
+            )
+        if self._needs_matrix_import and not _has_import_from(
+            lowered_body, "tython_std.matrix", "Matrix"
+        ):
+            lowered_body.insert(
+                0,
+                ast.ImportFrom(
+                    module="tython_std.matrix",
+                    names=[ast.alias(name="Matrix", asname=None)],
                     level=0,
                 ),
             )
@@ -137,6 +149,11 @@ class _LowerCustomIR(ast.NodeTransformer):
             self._uses_panic = True
         if isinstance(node.func, ast.Name) and node.func.id == RECORD_LITERAL_SENTINEL:
             return self._lower_record_literal_call(node)
+        return node
+
+    def visit_Name(self, node: ast.Name) -> ast.AST:
+        if node.id == "Matrix":
+            self._needs_matrix_import = True
         return node
 
     def visit_Expr(self, node: ast.Expr) -> ast.AST:

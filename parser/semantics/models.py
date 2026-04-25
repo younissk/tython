@@ -93,6 +93,8 @@ class Symbol:
     col_offset: int
     function_id: int | None
     initialized: bool
+    matrix_rank: int | None = None
+    matrix_element_type: str | None = None
     parent: str | None = None
     is_public: bool = False
 

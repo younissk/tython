@@ -27,7 +27,7 @@ jobs:
         run: uv run python scripts/run_corpus.py bench --output .project/perf/corpus.json --json
 
       - name: Upload perf report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: corpus-perf-report
           path: .project/perf/corpus.json

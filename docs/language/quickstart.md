@@ -27,7 +27,7 @@ if true {
 - Lowercase literals: `true`, `false`, `none`
 - Typed list annotations: `str[]`, `int[]`, `Fish[]`
 - Explicit blocks with braces: `if ... { ... }`
-- Functions use `func` keyword:
+- Functions use `func` keyword
 - Records and classes:
   - `record` for immutable named shapes
   - `class` for stateful behavior with `init` + optional `setup`
@@ -46,14 +46,16 @@ Run tests:
 uv run python -m pytest
 ```
 
-Run a `.ty` file:
+Run a `.ty` file (project mode):
 
 ```bash
-uv run tython run input.ty
+uv run tython init --name my_app
+uv run tython run
+uv run tython run src/main.ty
 ```
 
 Transpile `.ty` to Python:
 
 ```bash
-uv run tython transpile input.ty --output output.py
+uv run tython transpile input.ty output.py
 ```

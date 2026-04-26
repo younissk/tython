@@ -6,7 +6,7 @@ This page describes how custom Tython syntax is processed internally.
 
 1. Normalize source input.
 2. Rewrite custom syntax:
-   - strict import forms (`import pkg/mod`, `import "./file.ty" as alias`, `pyimport module`)
+   - strict import forms (`import pkg/mod as alias`, `import "./file.ty" as alias`, `pyimport module [as alias]`)
    - brace blocks (`{}`)
    - `func` declarations
    - checked error syntax (`throws`, `catch`, `try expr`)

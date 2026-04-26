@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import shutil
 import subprocess
 from enum import Enum
@@ -10,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
+from .core import lower, parse_custom
 from .project import (
     PackageSpec,
     ProjectManifest,
@@ -368,6 +370,81 @@ def add(
     _console.print(f"[green]Added[/green] package {package_name} ({spec}@{rev})")
 
 
+@app.command(help="Remove native package (git URL or package name) or Python dependency (--py).")
+def remove(
+    spec: str = typer.Argument(..., help="Git URL, native package name, or Python dependency spec."),
+    py: bool = typer.Option(False, "--py", help="Treat spec as Python dependency."),
+) -> None:
+    project_root = find_project_root(Path.cwd())
+    manifest = load_manifest(project_root)
+
+    if py:
+        if spec not in manifest.python_dependencies:
+            _error(
+                f"Python dependency '{spec}' not found",
+                "List dependencies under [python].dependencies in project.toml.",
+            )
+        next_deps = [dep for dep in manifest.python_dependencies if dep != spec]
+        write_manifest(
+            project_root,
+            ProjectManifest(
+                name=manifest.name,
+                version=manifest.version,
+                entry=manifest.entry,
+                packages=manifest.packages,
+                python_dependencies=next_deps,
+            ),
+        )
+        _console.print(f"[green]Removed[/green] python dependency {spec}")
+        return
+
+    if spec in manifest.packages:
+        updated_packages = dict(manifest.packages)
+        removed = updated_packages.pop(spec)
+        write_manifest(
+            project_root,
+            ProjectManifest(
+                name=manifest.name,
+                version=manifest.version,
+                entry=manifest.entry,
+                packages=updated_packages,
+                python_dependencies=manifest.python_dependencies,
+            ),
+        )
+        _console.print(f"[green]Removed[/green] package {removed.name}")
+        return
+
+    matches = [pkg for pkg in manifest.packages.values() if pkg.git == spec]
+    if len(matches) == 1:
+        removed = matches[0]
+        updated_packages = {
+            name: pkg for name, pkg in manifest.packages.items() if pkg.git != spec
+        }
+        write_manifest(
+            project_root,
+            ProjectManifest(
+                name=manifest.name,
+                version=manifest.version,
+                entry=manifest.entry,
+                packages=updated_packages,
+                python_dependencies=manifest.python_dependencies,
+            ),
+        )
+        _console.print(f"[green]Removed[/green] package {removed.name}")
+        return
+
+    if len(matches) > 1:
+        _error(
+            f"Multiple packages match git URL '{spec}'",
+            "Remove by package name instead.",
+        )
+
+    _error(
+        f"Package '{spec}' not found",
+        "Pass a package name from [packages] or the original git URL.",
+    )
+
+
 @app.command(help="Resolve native git deps and write project.lock.")
 def lock() -> None:
     project_root = find_project_root(Path.cwd())
@@ -476,6 +553,30 @@ def run(
 @app.command("version", help="Show CLI version.")
 def cli_version() -> None:
     _console.print(f"tython {_resolve_version()}")
+
+
+@app.command(help="Start an interactive Tython REPL.")
+def repl() -> None:
+    from .repl import main as repl_main
+
+    repl_main()
+
+
+@app.command(help="Transpile a .ty file to Python.")
+def transpile(
+    input: Path = typer.Argument(..., help="Path to input .ty source."),
+    output: Path = typer.Argument(..., help="Path to output .py file."),
+) -> None:
+    if input.suffix != ".ty":
+        _error(
+            "transpile supports .ty inputs only",
+            "Pass a path ending in .ty.",
+        )
+
+    source = input.read_text()
+    lowered = lower(parse_custom(source))
+    output.write_text(ast.unparse(lowered) + "\n")
+    _console.print(output)
 
 
 @lsp_app.command("start", help="Start the Tython language server over stdio.")

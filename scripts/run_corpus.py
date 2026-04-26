@@ -26,7 +26,7 @@ def _discover_cases(root: Path, *, split: str) -> list[CorpusCase]:
     if not case_root.exists():
         return cases
 
-    for source_path in sorted([*case_root.rglob("*.dp"), *case_root.rglob("*.ty")]):
+    for source_path in sorted(case_root.rglob("*.ty")):
         expected_python = source_path.with_suffix(".py")
         cases.append(
             CorpusCase(

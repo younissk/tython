@@ -9,8 +9,8 @@ starts parsing fields by position or assumption.
 
 ## Core Fields
 
-These fields are present in the structured diagnostic record emitted by `--errors json`,
-`--errors jsonl`, and the persisted JSONL logs:
+These fields are present in the structured diagnostic record used by tooling such as LSP and
+the internal compiler/formatter/linter APIs:
 
 - `code`
 - `severity`
@@ -39,8 +39,8 @@ These fields may be present when the diagnostic has richer context:
 
 ## LLM Payload
 
-The `--errors llm` mode emits a compact, versioned `llm_fields` payload on the second line of
-the rendered diagnostic. It mirrors the diagnostic record with a smaller, prompt-friendly shape:
+Some diagnostic renderers may include a compact, versioned `llm_fields` payload alongside the
+human-facing message. It mirrors the diagnostic record with a smaller, prompt-friendly shape:
 
 - `schema_version`
 - `code`

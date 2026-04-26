@@ -84,24 +84,14 @@ The published error-code inventory is documented in [Error Code Catalog](../refe
 
 ## Diagnostic Rendering
 
-CLI supports:
+Diagnostics are rendered by tools that run the compiler pipeline, such as:
 
-- `--errors rich`
-- `--errors compact`
-- `--errors json`
-- `--errors jsonl`
-- `--errors llm`
+- `tython lint`
+- `tython run`
+- `tython repl`
 
-Additional controls:
-
-- `--export-errors <path>`
-- `--verbose-errors`
-- `--trace`
-
-When errors occur, diagnostics are also persisted to:
-
-- `.project/errors/latest.jsonl`
-- `.project/errors/<timestamp>.jsonl`
+Editor integrations receive the same structured diagnostic payload through LSP.
+The machine-readable schema is documented in [Diagnostic Schema](../reference/diagnostic-schema.md).
 
 ## Legacy Message Compatibility
 

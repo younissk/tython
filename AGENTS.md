@@ -32,13 +32,13 @@ Example:
 
 ```text
 tests/cases/valid/
-  simple_import.dp
-  simple_assign.dp
-  enum_basic.dp
+  simple_import.ty
+  simple_assign.ty
+  enum_basic.ty
 
 tests/cases/invalid/
-  broken_import.dp
-  broken_enum.dp
+  broken_import.ty
+  broken_enum.ty
 ```
 
 Then write a test runner that walks those folders:

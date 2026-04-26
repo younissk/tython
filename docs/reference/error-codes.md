@@ -56,16 +56,16 @@ reference for behavior and wording.
 | `E2021` | typecheck | `parser/semantics/checker.py:3262` | err( "E2021", lineno, f"shadowing is forbidden for name '{name}'", "Rename the inner binding... |
 | `E2022` | typecheck | `parser/semantics/checker.py:3319` | err( "E2022", lineno, f"name '{name}' is declared but not initialized", "Initialize it before... |
 | `E2023` | typecheck | `parser/semantics/checker.py:3330` | err( "E2023", lineno, f"assignment to undeclared name '{name}'", "Declare it first with `var`... |
-| `E2024` | typecheck | `parser/semantics/checker.py:3338` | err( "E2024", lineno, f"use of undeclared name '{name}'", "Declare it before use.", ) |
-| `E2025` | typecheck | `parser/semantics/checker.py:3479` | err( "E2025", stmt.lineno, "internal binding IR shape is invalid", "Report this as an interna... |
-| `E2026` | typecheck | `parser/semantics/checker.py:3489` | err("E2026", stmt.lineno, "binding kind must be a string") |
-| `E2027` | typecheck | `parser/semantics/checker.py:3493` | err("E2027", stmt.lineno, "binding kind must be 'const' or 'var'") |
-| `E2028` | typecheck | `parser/semantics/checker.py:3497` | err("E2028", stmt.lineno, "binding name must be a string") |
-| `E2029` | typecheck | `parser/semantics/checker.py:3503` | err("E2029", stmt.lineno, "binding annotation must be a string or none") |
-| `E2030` | typecheck | `parser/semantics/checker.py:3509` | err( "E2030", stmt.lineno, "binding initializer flag must be a boolean", ) |
-| `E2031` | typecheck | `parser/semantics/checker.py:3549` | err( "E2031", stmt.lineno, "internal enum IR shape is invalid", "Report this as an internal p... |
-| `E2032` | typecheck | `parser/semantics/checker.py:3561` | err("E2032", stmt.lineno, "enum name must be a string literal") |
-| `E2033` | typecheck | `parser/semantics/checker.py:4020` | err( "E2033", lineno, f"invalid type name '{name}'", "Use PascalCase for user-defined types.", ) |
+| `E2024` | typecheck | `parser/semantics/checker.py:3351` | err( "E2024", lineno, f"use of undeclared name '{name}'", "Declare it before use.", ) |
+| `E2025` | typecheck | `parser/semantics/checker.py:3492` | err( "E2025", stmt.lineno, "internal binding IR shape is invalid", "Report this as an interna... |
+| `E2026` | typecheck | `parser/semantics/checker.py:3502` | err("E2026", stmt.lineno, "binding kind must be a string") |
+| `E2027` | typecheck | `parser/semantics/checker.py:3506` | err("E2027", stmt.lineno, "binding kind must be 'const' or 'var'") |
+| `E2028` | typecheck | `parser/semantics/checker.py:3510` | err("E2028", stmt.lineno, "binding name must be a string") |
+| `E2029` | typecheck | `parser/semantics/checker.py:3516` | err("E2029", stmt.lineno, "binding annotation must be a string or none") |
+| `E2030` | typecheck | `parser/semantics/checker.py:3522` | err( "E2030", stmt.lineno, "binding initializer flag must be a boolean", ) |
+| `E2031` | typecheck | `parser/semantics/checker.py:3562` | err( "E2031", stmt.lineno, "internal enum IR shape is invalid", "Report this as an internal p... |
+| `E2032` | typecheck | `parser/semantics/checker.py:3574` | err("E2032", stmt.lineno, "enum name must be a string literal") |
+| `E2033` | typecheck | `parser/semantics/checker.py:4033` | err( "E2033", lineno, f"invalid type name '{name}'", "Use PascalCase for user-defined types.", ) |
 | `E2034` | typecheck | `parser/semantics/type_utils.py:11` | err("E2034", 1, "annotation is required") |
 | `E2035` | typecheck | `parser/semantics/type_utils.py:26` | err( "E2035", getattr(annotation, "lineno", 1), "slice syntax is not allowed in type annotati... |
 | `E2036` | typecheck | `parser/semantics/type_utils.py:45` | err( "E2036", getattr(annotation, "lineno", 1), "invalid annotation", "Use a type name like i... |
@@ -173,9 +173,9 @@ reference for behavior and wording.
 | `E2147` | typecheck | `parser/semantics/checker.py:1464` | err("E2147", stmt.lineno, "class member public flag must be bool") |
 | `E2148` | typecheck | `parser/semantics/checker.py:1470` | err( "E2148", stmt.lineno, "class member class-context flag must be bool" ) |
 | `E2149` | typecheck | `parser/semantics/checker.py:1476` | err("E2149", stmt.lineno, "class member declaration used outside class") |
-| `E2150` | typecheck | `parser/semantics/checker.py:3971` | err( "E2150", expr.lineno, f"Matrix has no method '{method_name}'", "Use Matrix methods only.... |
+| `E2150` | typecheck | `parser/semantics/checker.py:3984` | err( "E2150", expr.lineno, f"Matrix has no method '{method_name}'", "Use Matrix methods only.... |
 | `E2151` | typecheck | `parser/semantics/checker.py:2377` | err( "E2151", expr.lineno, "setup cannot be called manually", "setup runs automatically durin... |
-| `E2152` | typecheck | `parser/semantics/checker.py:3519` | err( "E2152", stmt.lineno, "binding visibility flag must be a boolean", ) |
+| `E2152` | typecheck | `parser/semantics/checker.py:3532` | err( "E2152", stmt.lineno, "binding visibility flag must be a boolean", ) |
 | `E2153` | typecheck | `parser/semantics/checker.py:2830` | err( "E2153", getattr(expr, "lineno", 1), "internal record literal IR shape is invalid", "Rep... |
 | `E2154` | typecheck | `parser/semantics/checker.py:2842` | err("E2154", expr.lineno, "record literal type must be a string") |
 | `E2155` | typecheck | `parser/semantics/checker.py:2846` | err("E2155", expr.lineno, "record literal fields must be a list") |
@@ -217,15 +217,15 @@ reference for behavior and wording.
 | `E2191` | typecheck | `parser/semantics/checker.py:2557` | err( "E2191", expr.lineno, f"try propagation uses undeclared throws type(s): {missing}", "Add... |
 | `E2192` | typecheck | `parser/semantics/checker.py:2429` | err( "E2192", expr.lineno, f"call to throwing method '{expr.func.attr}' must be handled", "Wr... |
 | `E2200` | typecheck | `parser/semantics/checker.py:131` | err( "E2200", stmt.lineno, "native import must use slash-separated module path", "Use `import... |
-| `E2201` | typecheck | `parser/semantics/checker.py:3390` | err( "E2201", stmt.lineno, "internal native import IR shape is invalid", "Report this as an i... |
-| `E2202` | typecheck | `parser/semantics/checker.py:3402` | err("E2202", stmt.lineno, "native import target must be string") |
-| `E2203` | typecheck | `parser/semantics/checker.py:3408` | err("E2203", stmt.lineno, "native import alias must be string/none") |
-| `E2204` | typecheck | `parser/semantics/checker.py:3417` | err( "E2204", stmt.lineno, "internal file import IR shape is invalid", "Report this as an int... |
-| `E2205` | typecheck | `parser/semantics/checker.py:3429` | err("E2205", stmt.lineno, "file import path must be string") |
-| `E2206` | typecheck | `parser/semantics/checker.py:3435` | err("E2206", stmt.lineno, "file import alias must be string") |
-| `E2207` | typecheck | `parser/semantics/checker.py:3444` | err( "E2207", stmt.lineno, "internal pyimport IR shape is invalid", "Report this as an intern... |
-| `E2208` | typecheck | `parser/semantics/checker.py:3456` | err("E2208", stmt.lineno, "pyimport module must be string") |
-| `E2209` | typecheck | `parser/semantics/checker.py:3462` | err("E2209", stmt.lineno, "pyimport alias must be string/none") |
+| `E2201` | typecheck | `parser/semantics/checker.py:3403` | err( "E2201", stmt.lineno, "internal native import IR shape is invalid", "Report this as an i... |
+| `E2202` | typecheck | `parser/semantics/checker.py:3415` | err("E2202", stmt.lineno, "native import target must be string") |
+| `E2203` | typecheck | `parser/semantics/checker.py:3421` | err("E2203", stmt.lineno, "native import alias must be string/none") |
+| `E2204` | typecheck | `parser/semantics/checker.py:3430` | err( "E2204", stmt.lineno, "internal file import IR shape is invalid", "Report this as an int... |
+| `E2205` | typecheck | `parser/semantics/checker.py:3442` | err("E2205", stmt.lineno, "file import path must be string") |
+| `E2206` | typecheck | `parser/semantics/checker.py:3448` | err("E2206", stmt.lineno, "file import alias must be string") |
+| `E2207` | typecheck | `parser/semantics/checker.py:3457` | err( "E2207", stmt.lineno, "internal pyimport IR shape is invalid", "Report this as an intern... |
+| `E2208` | typecheck | `parser/semantics/checker.py:3469` | err("E2208", stmt.lineno, "pyimport module must be string") |
+| `E2209` | typecheck | `parser/semantics/checker.py:3475` | err("E2209", stmt.lineno, "pyimport alias must be string/none") |
 | `E2210` | typecheck | `parser/semantics/checker.py:146` | err( "E2210", stmt.lineno, "file import path must be relative", "Use `./` or `../` path prefi... |
 | `E2211` | typecheck | `parser/semantics/checker.py:161` | err( "E2211", stmt.lineno, f"invalid pyimport module '{module_name}'", "Use dotted Python mod... |
 | `E3000` | project | `parser/project.py:68` | _diag( "E3000", 1, "project.toml not found", "Run command from project root (or subdirectory... |

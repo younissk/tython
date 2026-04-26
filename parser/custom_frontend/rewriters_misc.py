@@ -288,7 +288,7 @@ def rewrite_import_forms(source: str) -> str:
                     "E1028",
                     lineno,
                     "invalid import form",
-                    'Use one of: `import pkg/mod`, `import "./file.ty" as alias`, `pyimport module [as alias]`.',
+                    'Use one of: `import pkg/mod as alias`, `import "./file.ty" as alias`, `pyimport module [as alias]`.',
                 )
             )
 

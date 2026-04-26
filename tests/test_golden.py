@@ -19,7 +19,7 @@ def _normalize_snapshot(snapshot: str) -> str:
 
 
 @pytest.mark.golden
-@pytest.mark.parametrize("fixture", sorted(BASE_DIR.glob("*.dp")))
+@pytest.mark.parametrize("fixture", sorted(BASE_DIR.glob("*.ty")))
 def test_golden_parse_custom_ast_snapshot(fixture: Path) -> None:
     tree = parse_custom(fixture.read_text())
     snapshot_path = fixture.with_suffix(".ast")

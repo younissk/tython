@@ -65,6 +65,7 @@ nav:
       - Quickstart: language/quickstart.md
   - Language:
       - Values and Bindings: language/values-and-bindings.md
+      - Imports: language/imports.md
       - Expressions: language/expressions.md
       - Scope: language/scope.md
       - Functions: language/functions.md

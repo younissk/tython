@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).parent / "cases" / "lowering"
 
 
 @pytest.mark.lowering
-@pytest.mark.parametrize("fixture", sorted(BASE_DIR.glob("*.dp")))
+@pytest.mark.parametrize("fixture", sorted(BASE_DIR.glob("*.ty")))
 def test_lowering_custom_ir_to_python_ast(fixture: Path) -> None:
     source = fixture.read_text()
     expected_source = fixture.with_suffix(".py").read_text()

@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).parent / "cases" / "smoke"
 
 def _fixtures(layer: str) -> list[Path]:
     path = BASE_DIR / layer
-    return sorted([*path.glob("*.dp"), *path.glob("*.ty")])
+    return sorted(path.glob("*.ty"))
 
 
 @pytest.mark.smoke

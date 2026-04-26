@@ -13,6 +13,7 @@ This site is built with MkDocs Material and tracks compiler behavior, not a sepa
 ## Read Next
 
 - [Values and Bindings](language/values-and-bindings.md)
+- [Imports](language/imports.md)
 - [Expressions](language/expressions.md)
 - [Matrix](language/matrix.md)
 - [Scope and Name Resolution](language/scope.md)

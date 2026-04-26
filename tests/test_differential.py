@@ -12,7 +12,7 @@ CUSTOM_DIR = BASE_DIR / "custom_syntax"
 
 
 @pytest.mark.differential
-@pytest.mark.parametrize("fixture", sorted(COMPAT_DIR.glob("*.dp")))
+@pytest.mark.parametrize("fixture", sorted(COMPAT_DIR.glob("*.ty")))
 def test_differential_compat_python_matches_cpython(fixture: Path) -> None:
     source = fixture.read_text()
 
@@ -26,7 +26,7 @@ def test_differential_compat_python_matches_cpython(fixture: Path) -> None:
 
 
 def _custom_fixtures() -> list[Path]:
-    return sorted([*CUSTOM_DIR.glob("*.dp"), *CUSTOM_DIR.glob("*.ty")])
+    return sorted(CUSTOM_DIR.glob("*.ty"))
 
 
 @pytest.mark.differential

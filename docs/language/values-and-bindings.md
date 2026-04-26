@@ -115,14 +115,32 @@ Reserved keywords:
 
 - `const`
 - `var`
+- `pub`
+- `record`
+- `class`
+- `setup`
+- `init`
+- `is`
+- `this`
+- `throws`
+- `catch`
+- `panic`
 - `true`
 - `false`
 - `none`
 
-Built-in type names are also reserved:
+Built-in type names are reserved:
 
 - `int`
 - `float`
 - `bool`
 - `str`
 - `none`
+
+Built-in value names are predeclared and cannot be redefined:
+
+- `print`
+- `len`
+- `range`
+- `panic`
+- `Matrix`

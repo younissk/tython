@@ -132,7 +132,13 @@ uv run tython add https://github.com/example/http.tython --rev <40-char-commit-s
 Add Python dependency passthrough:
 
 ```bash
-uv run tython add \"requests>=2.32\" --py
+uv run tython add "requests>=2.32" --py
+```
+
+Remove Python dependency passthrough:
+
+```bash
+uv run tython remove "requests>=2.32" --py
 ```
 
 Show all commands:
@@ -221,8 +227,8 @@ tython --help
 
 ## Legacy Command Paths
 
-Legacy standalone `.ty` single-file flows are the supported path in v1.
-Use project mode (`project.toml` + `src/` + `tython build/run`) instead.
+Tython is project-first in v1.
+For one-off experiments, use `tython repl` or `tython transpile input.ty output.py`.
 
 ## TODO
 

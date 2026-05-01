@@ -1,3 +1,5 @@
+![tyhon banner](./tython-banner.png)
+
 # Tython
 
 This repository focuses on grammar experimentation, parser validation, and docs-driven language design.

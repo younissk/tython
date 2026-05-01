@@ -15,6 +15,30 @@ The Langauge is designed to help us humans and LLMs theoretically understand cod
 - Standardised
 - Token efficient??? maybe
 
+Here a bit of a taste of the language: 
+
+```tython
+record Animal {
+  NAME: str,
+  hello(name: str) -> none
+}
+
+class Fish is Animal{
+
+  init const NAME: str
+  
+  pub func hello(name: str) -> none {
+    print("Hello {name}, my name is {this.NAME}")
+  }
+
+}
+
+const FISH = Fish(name: "tom")
+FISH.hello("jerry")
+```
+
+`init` variables in a class just bypass this syntax: `self.name = name` and also `this` is arguably better than passing `self` in every method. Methods by default are private, unless you add `pub` infront of it. Everything is statically typed and also I added consts and vars for mutibility stuff.
+
 ## TODO
 
 ### Docs

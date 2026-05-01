@@ -2,250 +2,25 @@
 
 # Tython
 
-This repository focuses on grammar experimentation, parser validation, and docs-driven language design.
+Just a small language I designed as a fun side project.
 
-## Layout
+P.S. mascott doesnt have a name yet. Please help me name it
 
-- `grammar/`: grammar sources (`python.gram`, `Tokens`)
-- `parser/`: parser package
-- `parser/core.py`: parser-facing API used by tests (`parse`, `parse_custom`, `lower`)
-- `parser/lowering.py`: lowering transformations from custom IR to Python AST
-- `parser/cli.py`: command-line flow for parsing/lowering/executing
-- `tests/cases/`: file fixtures grouped by test layer
-- `tests/test_*.py`: automated parser test suite
-- `AGENTS.md`: contributor and automation guidance
-  - includes a `User Collaboration Preferences` section for future chat behavior
+## Syntax
 
+The Langauge is designed to help us humans and LLMs theoretically understand code better. Therefore it is:
 
-## Docs
-
-Docs are built with MkDocs Material.
-
-Preview locally:
-
-```bash
-uv run mkdocs serve
-```
-
-Build strict static site:
-
-```bash
-uv run mkdocs build --strict
-```
-
-Docs live under `docs/`:
-
-- `docs/index.md`
-- `docs/getting-started.md`
-- `docs/installation.md`
-- `docs/language/quickstart.md`
-- `docs/language/values-and-bindings.md`
-- `docs/language/expressions.md`
-- `docs/language/scope.md`
-- `docs/language/functions.md`
-- `docs/language/functions-and-blocks.md`
-- `docs/language/enums.md`
-- `docs/language/records-and-classes.md`
-- `docs/language/errors.md`
-- `docs/tooling/cli.md`
-- `docs/tooling/lsp.md`
-- `docs/tooling/vim-neovim.md`
-- `docs/tooling/formatter.md`
-- `docs/reference/parser-pipeline.md`
-- `docs/reference/diagnostic-schema.md`
-- `docs/reference/error-codes.md`
-
-## How testing works
-
-1. Smoke (`tests/test_smoke.py`)
-   - Valid fixtures must parse.
-   - Invalid fixtures must raise `SyntaxError`.
-
-2. Differential (`tests/test_differential.py`)
-   - `compat_python/`: compare parser output to CPython `ast.parse`.
-   - `custom_syntax/`: compare lowered output to expected Python AST + compile checks.
-
-3. Golden (`tests/test_golden.py`)
-   - Snapshot custom parse AST shape for representative fixtures.
-
-4. Lowering (`tests/test_lowering.py`)
-   - Verify custom IR lowers to expected Python AST.
-
-5. Runtime path (`tests/test_main_ty_runtime.py`)
-   - Verify `.ty` input goes through custom parse + lowering + execution.
-
-## Run tests properly
-
-Run everything:
-
-```bash
-uv run python -m pytest
-```
-
-Run one layer:
-
-```bash
-uv run python -m pytest -m smoke
-uv run python -m pytest -m golden
-uv run python -m pytest -m lowering
-uv run python -m pytest -m differential
-```
-
-Run one file:
-
-```bash
-uv run python -m pytest tests/test_differential.py
-```
-
-## REPL
-
-Start an interactive Tython REPL:
-
-```bash
-uv run tython repl
-```
-
-## CLI (Project-First v1)
-
-Lock native git dependencies:
-
-```bash
-uv run tython lock
-```
-
-Build generated Python project into `.tython/build/`:
-
-```bash
-uv run tython build
-```
-
-Run source path in project context:
-
-```bash
-uv run tython run src/main.ty
-```
-
-Add native package (git):
-
-```bash
-uv run tython add https://github.com/example/http.tython --rev <40-char-commit-sha>
-```
-
-Add Python dependency passthrough:
-
-```bash
-uv run tython add "requests>=2.32" --py
-```
-
-Remove Python dependency passthrough:
-
-```bash
-uv run tython remove "requests>=2.32" --py
-```
-
-Show all commands:
-
-```bash
-uv run tython --help
-```
-
-## LSP + Vim / Neovim (v0)
-
-Start the language server over stdio:
-
-```bash
-uv run tython-lsp
-uv run tython lsp start
-```
-
-This repository includes a minimal editor package at `tython-vim/`.
-
-If you use native Vim packages:
-
-```vim
-packadd lsp
-packadd tython-vim
-filetype plugin on
-```
-
-Requirements:
-
-- `yegappan/lsp`
-- Vim 9.0+
-
-For cross-project Vim usage, install the CLI once so Vim can launch it from any working directory:
-
-```bash
-uv tool install .
-```
-
-Fast setup command:
-
-```bash
-tython lsp install vim
-```
-
-Neovim setup command:
-
-```bash
-tython lsp install nvim
-```
-
-The Vim plugin prefers `tython lsp start`, then `tython-lsp`, and finally falls back to `uv run tython-lsp`.
-You can override launch command explicitly in your `vimrc`:
-
-```vim
-let g:tython_lsp_cmd = ['tython', 'lsp', 'start']
-```
-
-Neovim uses builtin LSP. Same override works in `init.lua`:
-
-```lua
-vim.g.tython_lsp_cmd = { 'tython', 'lsp', 'start' }
-```
-
-Quick global setup from this repo:
-
-```bash
-uv tool install .
-make vim-install
-make nvim-install
-```
-
-If `:set filetype?` is empty on a `.ty` file, run:
-
-```vim
-:filetype plugin on
-:e
-:set filetype?
-```
-
-Install globally (usable from anywhere):
-
-```bash
-uv tool install .
-tython --help
-```
-
-## Legacy Command Paths
-
-Tython is project-first in v1.
-For one-off experiments, use `tython repl` or `tython transpile input.ty output.py`.
+- Statically typed
+- Highly opinionated
+- Standardised
+- Token efficient??? maybe
 
 ## TODO
 
 ### Docs
 
-- official website
-- docs page
-- getting started guide
-- notebook support
-- in-browser playground
-- feature voting in the docs so readers can upvote and downvote language ideas
-- language reference
-- standard library reference
-- FAQ
-- design docs / rationale
+- Go over to see if llms generated it correctly
+- make a nicer design and front page (I like the ghostty one)
 
 ### Standard library
 
@@ -253,26 +28,15 @@ A language without a standard library is usually painful to use.
 
 Typical standard library areas:
 
-- strings
-- numbers
-- collections
-- files
+- files (Glob under the hood?)
 - networking
-- dates and times
-- math
-- regular expressions
-- JSON / serialization
-- concurrency primitives
-- process management
-- testing utilities
-- centralized testing framework
+- math (Numpy?)
+- centralized testing framework (like bun, integrated into the language)
 - package registry
 - binary distribution story
 - how users install the language
-- logging
-- cryptography basics
-- OS interaction
+- logging (Loguru under the hood?)
 
 Possibly in the future:
-- Numeric arrays uses numpy by default?
 - What about using polars by default for dataframes?
+- Pytorch fully integrated in the langauge?

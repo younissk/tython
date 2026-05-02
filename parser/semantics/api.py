@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import ast
+from pathlib import Path
 
 from .checker import SemanticChecker
 from .constants import BUILTIN_NAMES
 from .models import ClassDecl, FunctionSignature, RecordDecl, SemanticAnalysis, Symbol
 
 
-def check_semantics(tree: ast.AST) -> None:
-    SemanticChecker().check(tree)
+def check_semantics(tree: ast.AST, *, project_root: Path | None = None) -> None:
+    SemanticChecker(project_root=project_root).check(tree)
 
 
-def analyze_semantics(tree: ast.AST) -> SemanticAnalysis:
-    checker = SemanticChecker()
+def analyze_semantics(tree: ast.AST, *, project_root: Path | None = None) -> SemanticAnalysis:
+    checker = SemanticChecker(project_root=project_root)
     checker.check(tree)
     return checker.analysis
 
@@ -47,9 +48,12 @@ class PreludeState(dict[str, tuple[str, str | None, bool]]):
 
 # name -> (kind, type_name, initialized)
 def check_semantics_with_prelude(
-    tree: ast.AST, predeclared: dict[str, tuple[str, str | None, bool]] | PreludeState
+    tree: ast.AST,
+    predeclared: dict[str, tuple[str, str | None, bool]] | PreludeState,
+    *,
+    project_root: Path | None = None,
 ) -> PreludeState:
-    checker = SemanticChecker()
+    checker = SemanticChecker(project_root=project_root)
     state = PreludeState.coerce(predeclared)
     module_scope = checker._scopes[0]
     for name, (kind, type_name, initialized) in state.items():
@@ -58,6 +62,7 @@ def check_semantics_with_prelude(
             qualified_name=name,
             kind=kind,
             type_name=type_name,
+            py_module=None,
             lineno=0,
             col_offset=0,
             function_id=None,

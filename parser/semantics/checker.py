@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
+from pathlib import Path
 
 from ..custom_frontend import (
     BINDING_SENTINEL,
@@ -58,6 +59,7 @@ from .type_utils import (
     iter_type_atoms,
     signature_to_function_type,
 )
+from .pyimport_stubs import PyImportStubIndex
 
 
 @dataclass(frozen=True)
@@ -67,7 +69,9 @@ class TryContext:
 
 
 class SemanticChecker:
-    def __init__(self) -> None:
+    def __init__(self, *, project_root: Path | None = None) -> None:
+        self._project_root = project_root
+        self._pyimport_stubs: PyImportStubIndex | None = None
         self._scopes: list[Scope] = [Scope(kind="module", function_id=None, symbols={})]
         self._next_function_id = 1
         self._function_signatures: dict[str, FunctionSignature] = {}
@@ -90,6 +94,7 @@ class SemanticChecker:
                 qualified_name=builtin,
                 kind="const",
                 type_name=None,
+                py_module=None,
                 lineno=0,
                 col_offset=0,
                 function_id=None,
@@ -166,7 +171,17 @@ class SemanticChecker:
                     )
                 )
             bound_name = alias or module_name.split(".", 1)[0]
-            self._declare_name(bound_name, "const", None, stmt.lineno, initialized=True)
+            self._declare_name(
+                bound_name,
+                "const",
+                None,
+                stmt.lineno,
+                initialized=True,
+                detail=f"pyimport {module_name}",
+            )
+            sym = self._lookup_symbol(bound_name)
+            if sym is not None:
+                sym.py_module = module_name
             return
 
         if self._is_binding_decl_stmt(stmt):
@@ -1901,6 +1916,18 @@ class SemanticChecker:
             return self._check_call(expr)
 
         if isinstance(expr, ast.Attribute):
+            if isinstance(expr.value, ast.Name):
+                symbol = self._lookup_symbol(expr.value.id)
+                if symbol is not None and symbol.py_module is not None:
+                    stubs = self._stub_index()
+                    if stubs is not None:
+                        sig = stubs.lookup_function(symbol.py_module, expr.attr)
+                        if sig is not None:
+                            return signature_to_function_type(sig)
+                        var_type = stubs.lookup_variable(symbol.py_module, expr.attr)
+                        if var_type is not None:
+                            return var_type
+
             value_type = self._check_expression(expr.value)
             if value_type == "Matrix":
                 matrix_rank, matrix_element_type = self._matrix_info_for_expr(
@@ -2394,6 +2421,16 @@ class SemanticChecker:
 
         if isinstance(expr.func, ast.Attribute):
             owner_type = self._check_expression(expr.func.value)
+            if isinstance(expr.func.value, ast.Name):
+                symbol = self._lookup_symbol(expr.func.value.id)
+                if symbol is not None and symbol.py_module is not None:
+                    stubs = self._stub_index()
+                    if stubs is not None:
+                        sig = stubs.lookup_function(symbol.py_module, expr.func.attr)
+                        if sig is not None:
+                            # Enforce arity, but keep args permissive (stubs are optional).
+                            self._check_pyimport_stub_call(expr, sig)
+                            return sig.return_type, set()
             if owner_type == "Matrix":
                 result_type, result_rank, result_element_type = self._check_matrix_method_call(
                     expr, expr.func.value, expr.func.attr
@@ -3244,6 +3281,7 @@ class SemanticChecker:
         is_public: bool = False,
         matrix_rank: int | None = None,
         matrix_element_type: str | None = None,
+        detail: str | None = None,
     ) -> None:
         scope = self._scopes[-1]
         if name in scope.symbols:
@@ -3277,6 +3315,7 @@ class SemanticChecker:
             qualified_name=qualified_name,
             kind=kind,
             type_name=type_name,
+            py_module=None,
             lineno=lineno,
             col_offset=(location[1] if location is not None else 1),
             function_id=self._current_function_id(),
@@ -3293,6 +3332,7 @@ class SemanticChecker:
             location=location or (lineno, 1),
             parent_qname=self._current_callable_name,
             is_public=is_public,
+            detail=detail,
         )
 
     def _resolve_name(
@@ -4039,6 +4079,8 @@ class SemanticChecker:
             )
 
     def _is_type_compatible(self, declared: str, inferred: str | None) -> bool:
+        if declared == "py:any":
+            return True
         if inferred is None or inferred == "unknown[]":
             return True
         if declared == inferred:
@@ -4046,3 +4088,32 @@ class SemanticChecker:
         if declared in {"int", "float"} and inferred in {"int", "float"}:
             return True
         return False
+
+    def _stub_index(self) -> PyImportStubIndex | None:
+        if self._project_root is None:
+            return None
+        stubs_root = self._project_root / "stubs"
+        if not stubs_root.exists():
+            return None
+        if self._pyimport_stubs is None:
+            self._pyimport_stubs = PyImportStubIndex(stubs_root)
+        return self._pyimport_stubs
+
+    def _check_pyimport_stub_call(self, expr: ast.Call, signature: FunctionSignature) -> None:
+        params = signature.params
+        required = sum(1 for p in params if not p.has_default)
+        if len(expr.args) < required or len(expr.args) > len(params):
+            raise SyntaxError(
+                err(
+                    "E2073",
+                    expr.lineno,
+                    f"wrong number of arguments for '{signature.name}'",
+                    f"Expected between {required} and {len(params)} positional args.",
+                )
+            )
+        if expr.keywords:
+            # Keep it simple: stub-based pyimport typing only supports positional args for now.
+            for keyword in expr.keywords:
+                self._check_expression(keyword.value)
+        for arg in expr.args:
+            self._check_expression(arg)

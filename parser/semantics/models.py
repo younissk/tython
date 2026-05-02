@@ -89,6 +89,7 @@ class Symbol:
     qualified_name: str
     kind: str
     type_name: str | None
+    py_module: str | None
     lineno: int
     col_offset: int
     function_id: int | None

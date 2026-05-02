@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import ast
+import hashlib
+import subprocess
 import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .core import lower, parse_custom
+from .core import lower
 from .custom_frontend import (
     FILE_IMPORT_SENTINEL,
     NATIVE_IMPORT_SENTINEL,
     PYIMPORT_SENTINEL,
+    parse_custom_source,
 )
 from .project import (
     LOCK_FILE,
@@ -20,6 +23,7 @@ from .project import (
     resolve_lock,
     write_lock,
 )
+from .semantics import check_semantics
 
 
 @dataclass(frozen=True)
@@ -54,7 +58,9 @@ def build_project(
 
     for unit in units:
         source = unit.source_path.read_text()
-        tree = parse_custom(source)
+        source = _normalize_source(source)
+        tree = parse_custom_source(source).tree
+        check_semantics(tree, project_root=project_root)
 
         native_import_map: dict[str, str] = {}
         file_import_map: dict[str, str] = {}
@@ -85,13 +91,14 @@ def build_project(
         output_path.write_text(rendered)
         _ensure_package_inits(output_path.parent, build_root / "src")
 
+    _copy_runtime_stdlib(build_root)
     _write_generated_pyproject(project_root, manifest, build_root)
 
     return build_root
 
 
 def run_generated_target(
-    project_root: Path, target_file: Path, *, mode: str = "exec"
+    project_root: Path, target_file: Path, *, mode: str = "exec", sync: bool = True
 ) -> None:
     build_root = build_project(project_root)
     manifest = load_manifest(project_root)
@@ -103,28 +110,91 @@ def run_generated_target(
             f"[E3203] Line 1: target '{target_file}' not in build output. Hint: check file path under src/."
         )
 
-    try:
-        if str(build_root / "src") not in sys.path:
-            sys.path.insert(0, str(build_root / "src"))
-        if mode == "eval":
-            code = compile(generated.read_text(), str(generated), "eval")
-            result = eval(code, {"__name__": "__main__"})
-            if result is not None:
-                print(result)
-            return
+    venv_python: Path | None = None
+    wants_env = bool(manifest.python_dependencies) or bool(manifest.python_imports)
+    if (sync and wants_env) or _python_venv_dir(project_root).exists():
+        venv_python = ensure_python_env(project_root, sync=sync and wants_env)
 
-        compiled = compile(generated.read_text(), str(generated), mode)
-        exec(compiled, {"__name__": "__main__"})
-    except ModuleNotFoundError as exc:
-        module = getattr(exc, "name", None) or "unknown"
+    runner = _runner_source(
+        generated=generated, build_src=build_root / "src", mode=mode
+    )
+    completed = subprocess.run(
+        [str(venv_python) if venv_python is not None else sys.executable, "-c", runner],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.returncode == 0:
+        return
+
+    missing = _extract_missing_module(completed.stderr)
+    if missing is not None:
+        root = missing.split(".", 1)[0]
+        suggestion = None
+        spec = manifest.python_imports.get(root)
+        if spec is not None and spec.distribution:
+            suggestion = spec.distribution
         raise RuntimeError(
             "Python dependency error: pyimport "
-            f"'{module}' could not be resolved.\n\n"
+            f"'{root}' could not be resolved.\n\n"
             "This import belongs to Python dependency world, not native Tython packages.\n\n"
             "Fix:\n"
-            "- add it under [python].dependencies in project.toml\n"
+            f"- add it under [python].dependencies in project.toml{_format_distribution_hint(suggestion)}\n"
+            "- run `tython python sync` (or rerun without --no-sync)\n"
             "- rebuild generated Python project"
-        ) from exc
+        )
+
+    raise RuntimeError(completed.stderr.strip() or "Execution failed.")
+
+
+def ensure_python_env(project_root: Path, *, sync: bool) -> Path:
+    """Ensure project-local venv exists, optionally syncing deps. Returns venv python."""
+    python_root = project_root / ".tython" / "python"
+    python_root.mkdir(parents=True, exist_ok=True)
+    venv_dir = _python_venv_dir(project_root)
+    venv_python = _venv_python(venv_dir)
+
+    if not venv_python.exists():
+        subprocess.run(
+            [sys.executable, "-m", "venv", str(venv_dir)],
+            cwd=project_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    if not sync:
+        return venv_python
+
+    manifest = load_manifest(project_root)
+    deps = list(manifest.python_dependencies)
+    if not deps:
+        return venv_python
+
+    fingerprint_path = python_root / "deps.sha256"
+    next_fingerprint = _deps_fingerprint(deps)
+    if fingerprint_path.exists() and fingerprint_path.read_text().strip() == next_fingerprint:
+        return venv_python
+
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "--upgrade", "pip"],
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", *deps],
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    fingerprint_path.write_text(next_fingerprint + "\n")
+    return venv_python
 
 
 def _collect_units(project_root: Path, manifest: ProjectManifest) -> list[SourceUnit]:
@@ -257,3 +327,80 @@ def _clear_build_root(build_root: Path) -> None:
     if build_root.exists():
         shutil.rmtree(build_root)
     build_root.mkdir(parents=True, exist_ok=True)
+
+
+def _copy_runtime_stdlib(build_root: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    src = repo_root / "tython_std"
+    if not src.exists():
+        return
+    dest = build_root / "src" / "tython_std"
+    shutil.copytree(src, dest, dirs_exist_ok=True)
+
+
+def _python_venv_dir(project_root: Path) -> Path:
+    return project_root / ".tython" / "python" / ".venv"
+
+
+def _venv_python(venv_dir: Path) -> Path:
+    if sys.platform == "win32":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
+
+
+def _deps_fingerprint(deps: list[str]) -> str:
+    blob = "\n".join(deps).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
+
+
+_MISSING_SENTINEL = "__TYTHON_MISSING_PYMODULE__="
+
+
+def _runner_source(*, generated: Path, build_src: Path, mode: str) -> str:
+    # IMPORTANT: keep this as plain Python source; it runs in a subprocess.
+    gen = str(generated)
+    bsrc = str(build_src)
+    return "\n".join(
+        [
+            "import sys",
+            f"build_src = {bsrc!r}",
+            "if build_src not in sys.path:",
+            "    sys.path.insert(0, build_src)",
+            f"generated = {gen!r}",
+            f"mode = {mode!r}",
+            "try:",
+            "    source = open(generated, 'r', encoding='utf-8').read()",
+            "    if mode == 'eval':",
+            "        code = compile(source, generated, 'eval')",
+            "        result = eval(code, {'__name__': '__main__'})",
+            "        if result is not None:",
+            "            print(result)",
+            "    else:",
+            "        code = compile(source, generated, mode)",
+            "        exec(code, {'__name__': '__main__'})",
+            "except ModuleNotFoundError as exc:",
+            "    name = getattr(exc, 'name', None) or 'unknown'",
+            f"    sys.stderr.write({(_MISSING_SENTINEL)!r} + str(name) + '\\n')",
+            "    raise",
+        ]
+    )
+
+
+def _extract_missing_module(stderr: str) -> str | None:
+    for line in stderr.splitlines():
+        if line.startswith(_MISSING_SENTINEL):
+            return line.split("=", 1)[-1].strip() or None
+    return None
+
+
+def _format_distribution_hint(distribution: str | None) -> str:
+    if not distribution:
+        return ""
+    # Keep it short; this is appended to the bullet line.
+    return f" (try: {distribution})"
+
+
+def _normalize_source(source: str) -> str:
+    if source.startswith("\ufeff"):
+        return source.removeprefix("\ufeff")
+    return source

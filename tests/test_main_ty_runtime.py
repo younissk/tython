@@ -25,6 +25,30 @@ dependencies = []
     return root
 
 
+def _write_project_with_python_deps(
+    tmp_path: Path, source: str, *, python_deps: list[str]
+) -> Path:
+    root = tmp_path / "my_app"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "main.ty").write_text(source)
+    deps = "\n".join(f'  "{dep}",' for dep in python_deps)
+    (root / "project.toml").write_text(
+        f"""
+[project]
+name = "my_app"
+version = "0.1.0"
+entry = "src/main.ty"
+
+[python]
+dependencies = [
+{deps}
+]
+""".strip()
+        + "\n"
+    )
+    return root
+
+
 def test_main_executes_project_path_target(tmp_path: Path) -> None:
     project_root = _write_project(tmp_path, "print(40 + 2)\n")
 
@@ -86,3 +110,76 @@ print(b.dtype)
 
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip().splitlines() == ["[2, 2]", "int", "float"]
+
+
+def test_run_syncs_python_deps_and_executes_pyimport(tmp_path: Path) -> None:
+    project_root = tmp_path / "my_app"
+    localpkg_root = project_root / "pydeps" / "localpkg"
+    (localpkg_root / "localpkg").mkdir(parents=True)
+    (localpkg_root / "localpkg" / "__init__.py").write_text(
+        "def answer() -> int:\n    return 42\n"
+    )
+    (localpkg_root / "setup.py").write_text(
+        """
+from setuptools import setup
+
+setup(
+    name="localpkg",
+    version="0.0.0",
+    packages=["localpkg"],
+)
+""".strip()
+        + "\n"
+    )
+
+    project_root = _write_project_with_python_deps(
+        tmp_path,
+        "pyimport localpkg as lp\nprint(lp.answer())\n",
+        python_deps=["./pydeps/localpkg"],
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(MAIN_PY), "run", "src/main.ty"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "42"
+    assert (project_root / ".tython" / "python" / ".venv").exists()
+
+
+def test_pyimport_stub_influences_typechecking_in_lint(tmp_path: Path) -> None:
+    project_root = _write_project(
+        tmp_path,
+        "pyimport localpkg as lp\nvar x: int = lp.answer()\nprint(x)\n",
+    )
+    (project_root / "stubs").mkdir(parents=True)
+    (project_root / "stubs" / "localpkg.pyi").write_text(
+        "def answer() -> int: ...\n"
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(MAIN_PY), "lint"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+    # negative case
+    (project_root / "src" / "main.ty").write_text(
+        "pyimport localpkg as lp\nvar x: str = lp.answer()\nprint(x)\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, str(MAIN_PY), "lint"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 1
+    assert "E2016" in completed.stderr

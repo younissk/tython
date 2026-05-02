@@ -13,6 +13,7 @@ BUILD_DIR = ".tython/build"
 
 _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _PY_IMPORT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_PY_IMPORT_ROOT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,12 @@ class PackageSpec:
     name: str
     git: str
     requested: str
+
+
+@dataclass(frozen=True)
+class PythonImportSpec:
+    distribution: str | None = None
+    stub_distribution: str | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +45,7 @@ class ProjectManifest:
     entry: str
     packages: dict[str, PackageSpec] = field(default_factory=dict)
     python_dependencies: list[str] = field(default_factory=list)
+    python_imports: dict[str, PythonImportSpec] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -154,6 +162,7 @@ def load_manifest(project_root: Path) -> ProjectManifest:
         packages[name_key] = PackageSpec(name=name_key, git=git, requested=requested)
 
     python_deps: list[str] = []
+    python_imports: dict[str, PythonImportSpec] = {}
     raw_python = data.get("python", {})
     if raw_python is None:
         raw_python = {}
@@ -177,12 +186,92 @@ def load_manifest(project_root: Path) -> ProjectManifest:
         )
     python_deps.extend(raw_deps)
 
+    raw_imports = raw_python.get("imports", {})
+    if raw_imports is None:
+        raw_imports = {}
+    if not isinstance(raw_imports, dict):
+        raise SyntaxError(
+            _diag(
+                "E3017",
+                1,
+                "[python].imports must be table",
+                "Use [python.imports] with inline tables.",
+            )
+        )
+    for import_root, spec in raw_imports.items():
+        if not isinstance(import_root, str) or not _PY_IMPORT_ROOT_RE.fullmatch(
+            import_root
+        ):
+            raise SyntaxError(
+                _diag(
+                    "E3018",
+                    1,
+                    f"invalid [python.imports] key '{import_root}'",
+                    "Use top-level import roots only, e.g. PIL, sklearn, yaml.",
+                )
+            )
+        if not isinstance(spec, dict):
+            raise SyntaxError(
+                _diag(
+                    "E3019",
+                    1,
+                    f"[python.imports].{import_root} must be inline table",
+                    'Use `{ distribution = "DistName" }` form.',
+                )
+            )
+        allowed = {"distribution", "stub_distribution"}
+        unknown = [k for k in spec.keys() if k not in allowed]
+        if unknown:
+            raise SyntaxError(
+                _diag(
+                    "E3028",
+                    1,
+                    f"unknown key(s) in [python.imports].{import_root}: {', '.join(sorted(map(str, unknown)))}",
+                    "Use only distribution/stub_distribution.",
+                )
+            )
+        distribution = spec.get("distribution")
+        if distribution is not None and (not isinstance(distribution, str) or not distribution.strip()):
+            raise SyntaxError(
+                _diag(
+                    "E3029",
+                    1,
+                    f"[python.imports].{import_root}.distribution must be string",
+                    'Use `distribution = "SomeDist"`.',
+                )
+            )
+        stub_distribution = spec.get("stub_distribution")
+        if stub_distribution is not None and (
+            not isinstance(stub_distribution, str) or not stub_distribution.strip()
+        ):
+            raise SyntaxError(
+                _diag(
+                    "E3033",
+                    1,
+                    f"[python.imports].{import_root}.stub_distribution must be string",
+                    'Use `stub_distribution = "types-something"`.',
+                )
+            )
+        if distribution is None and stub_distribution is None:
+            raise SyntaxError(
+                _diag(
+                    "E3034",
+                    1,
+                    f"[python.imports].{import_root} must declare distribution or stub_distribution",
+                    'Use `{ distribution = "SomeDist" }`.',
+                )
+            )
+        python_imports[import_root] = PythonImportSpec(
+            distribution=distribution, stub_distribution=stub_distribution
+        )
+
     return ProjectManifest(
         name=name,
         version=version,
         entry=entry,
         packages=packages,
         python_dependencies=python_deps,
+        python_imports=python_imports,
     )
 
 
@@ -344,6 +433,20 @@ def write_manifest(project_root: Path, manifest: ProjectManifest) -> None:
         lines.append(f'  "{_escape(dep)}",')
     lines.append("]")
     lines.append("")
+
+    if manifest.python_imports:
+        lines.append("[python.imports]")
+        for key in sorted(manifest.python_imports):
+            spec = manifest.python_imports[key]
+            parts: list[str] = []
+            if spec.distribution is not None:
+                parts.append(f'distribution = "{_escape(spec.distribution)}"')
+            if spec.stub_distribution is not None:
+                parts.append(
+                    f'stub_distribution = "{_escape(spec.stub_distribution)}"'
+                )
+            lines.append(f"{key} = {{ {', '.join(parts)} }}")
+        lines.append("")
 
     (project_root / PROJECT_FILE).write_text("\n".join(lines))
 

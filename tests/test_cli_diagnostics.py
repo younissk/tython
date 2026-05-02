@@ -42,6 +42,12 @@ dependencies = []
     )
 
 
+def _write_project_toml(root: Path, source: str, toml: str) -> None:
+    (root / "src").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "main.ty").write_text(source)
+    (root / "project.toml").write_text(toml.strip() + "\n")
+
+
 def test_invalid_import_form_reports_explicit_error(tmp_path: Path) -> None:
     _write_project(tmp_path, "import requests\n")
 
@@ -72,6 +78,32 @@ def test_missing_pyimport_dependency_has_world_specific_message(tmp_path: Path) 
         in completed.stderr
     )
     assert "Python dependency world" in completed.stderr
+
+
+def test_pyimport_missing_module_suggests_distribution_mapping(tmp_path: Path) -> None:
+    _write_project_toml(
+        tmp_path,
+        "pyimport yaml\nprint(yaml)\n",
+        """
+[project]
+name = "my_app"
+version = "0.1.0"
+entry = "src/main.ty"
+
+[python]
+dependencies = []
+
+[python.imports]
+yaml = { distribution = "PyYAML" }
+""",
+    )
+
+    completed = _run_cli("run", "src/main.ty", cwd=tmp_path)
+
+    assert completed.returncode == 1
+    assert "Python dependency error: pyimport 'yaml'" in completed.stderr
+    assert "Python dependency world" in completed.stderr
+    assert "PyYAML" in completed.stderr
 
 
 def test_lint_valid_project_succeeds(tmp_path: Path) -> None:

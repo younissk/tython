@@ -10,6 +10,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.panel import Panel
+from rich.markup import escape
 
 from .core import lower, parse_custom
 from .project import (
@@ -22,7 +23,7 @@ from .project import (
     write_manifest,
 )
 from .formatter import format_file, format_source
-from .lint import discover_lint_targets, lint_file
+from .lint import discover_lint_targets, lint_file, lint_file_in_project
 from .project_build import build_project, lock_project, run_generated_target
 
 
@@ -39,6 +40,9 @@ app = typer.Typer(
     add_completion=False,
     help="Minimal strict project-first CLI for Tython.",
 )
+l_python_app = typer.Typer(
+    name="python", help="Python environment commands.", add_completion=False
+)
 lsp_app = typer.Typer(
     name="lsp", help="Language server commands.", add_completion=False
 )
@@ -47,6 +51,7 @@ lsp_install_app = typer.Typer(
 )
 app.add_typer(lsp_app)
 lsp_app.add_typer(lsp_install_app)
+app.add_typer(l_python_app)
 _console = Console()
 _error_console = Console(stderr=True)
 
@@ -226,7 +231,7 @@ def _resolve_version() -> str:
 def _error(message: str, hint: str) -> None:
     _error_console.print(
         Panel.fit(
-            f"[bold red]Error:[/bold red] {message}\n[dim]{hint}[/dim]",
+            f"[bold red]Error:[/bold red] {escape(message)}\n[dim]{escape(hint)}[/dim]",
             title="tython",
             border_style="red",
         )
@@ -336,6 +341,7 @@ def add(
                 entry=manifest.entry,
                 packages=manifest.packages,
                 python_dependencies=[*manifest.python_dependencies, spec],
+                python_imports=manifest.python_imports,
             ),
         )
         _console.print(f"[green]Added[/green] python dependency {spec}")
@@ -365,6 +371,7 @@ def add(
             entry=manifest.entry,
             packages=updated_packages,
             python_dependencies=manifest.python_dependencies,
+            python_imports=manifest.python_imports,
         ),
     )
     _console.print(f"[green]Added[/green] package {package_name} ({spec}@{rev})")
@@ -393,6 +400,7 @@ def remove(
                 entry=manifest.entry,
                 packages=manifest.packages,
                 python_dependencies=next_deps,
+                python_imports=manifest.python_imports,
             ),
         )
         _console.print(f"[green]Removed[/green] python dependency {spec}")
@@ -409,6 +417,7 @@ def remove(
                 entry=manifest.entry,
                 packages=updated_packages,
                 python_dependencies=manifest.python_dependencies,
+                python_imports=manifest.python_imports,
             ),
         )
         _console.print(f"[green]Removed[/green] package {removed.name}")
@@ -428,6 +437,7 @@ def remove(
                 entry=manifest.entry,
                 packages=updated_packages,
                 python_dependencies=manifest.python_dependencies,
+                python_imports=manifest.python_imports,
             ),
         )
         _console.print(f"[green]Removed[/green] package {removed.name}")
@@ -477,7 +487,7 @@ def lint(
 
     for path in targets:
         checked += 1
-        diagnostics = lint_file(path)
+        diagnostics = lint_file_in_project(path, project_root=project_root)
         if diagnostics:
             has_errors = True
             for diagnostic in diagnostics:
@@ -518,6 +528,9 @@ def run(
     mode: ExecMode = typer.Option(
         ExecMode.exec, "--mode", help="Execution mode for path target."
     ),
+    no_sync: bool = typer.Option(
+        False, "--no-sync", help="Skip creating/syncing the Python venv for pyimport."
+    ),
 ) -> None:
     project_root = find_project_root(Path.cwd())
     manifest = load_manifest(project_root)
@@ -545,7 +558,7 @@ def run(
         _error(f"Target file not found: {path}", "Pass existing .ty source path.")
 
     try:
-        run_generated_target(project_root, path, mode=mode.value)
+        run_generated_target(project_root, path, mode=mode.value, sync=not no_sync)
     except Exception as exc:
         _error(str(exc), "Fix project/dependency config and retry.")
 
@@ -577,6 +590,19 @@ def transpile(
     lowered = lower(parse_custom(source))
     output.write_text(ast.unparse(lowered) + "\n")
     _console.print(output)
+
+
+@l_python_app.command("sync", help="Create/sync project Python venv from [python].dependencies.")
+def python_sync() -> None:
+    project_root = find_project_root(Path.cwd())
+    try:
+        # reuse runner path; sync-only is implemented in project_build
+        from .project_build import ensure_python_env
+
+        ensure_python_env(project_root, sync=True)
+        _console.print(f"[green]Synced[/green] Python environment at {project_root / '.tython' / 'python' / '.venv'}")
+    except Exception as exc:
+        _error(str(exc), "Fix Python dependency config and retry.")
 
 
 @lsp_app.command("start", help="Start the Tython language server over stdio.")

@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import parse_custom
+from .custom_frontend import parse_custom_source
 from .diagnostics import diagnostic_from_exception, render_diagnostic
+from .semantics import check_semantics
 
 
 @dataclass(frozen=True)
@@ -16,6 +18,24 @@ class LintResult:
 def lint_file(path: Path) -> list[str]:
     try:
         parse_custom(path.read_text())
+        return []
+    except SyntaxError as exc:
+        diagnostic = diagnostic_from_exception(
+            exc,
+            file=str(path),
+            include_trace=False,
+            default_phase="typecheck",
+        )
+        return [render_diagnostic(diagnostic, mode="rich", verbose=False)]
+
+def lint_file_in_project(path: Path, *, project_root: Path) -> list[str]:
+    """Lint a file using project context (enables pyimport stubs under stubs/)."""
+    try:
+        source = path.read_text()
+        if source.startswith("\ufeff"):
+            source = source.removeprefix("\ufeff")
+        tree = parse_custom_source(source).tree
+        check_semantics(tree, project_root=project_root)
         return []
     except SyntaxError as exc:
         diagnostic = diagnostic_from_exception(

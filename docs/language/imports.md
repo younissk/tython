@@ -39,3 +39,8 @@ pyimport json as json
 ```
 
 This is a backend escape hatch for the generated Python code.
+
+When running a project via `tython run`, Python dependencies are installed into a
+project-local virtual environment (from `[python].dependencies` in `project.toml`).
+Use `tython python sync` to sync the environment explicitly, or `tython run --no-sync`
+to skip syncing.

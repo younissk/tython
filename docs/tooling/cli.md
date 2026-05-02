@@ -15,6 +15,7 @@ tython build
 tython lint
 tython format
 tython run src/main.ty
+tython python sync
 tython repl
 tython transpile input.ty output.py
 tython version
@@ -30,6 +31,7 @@ tython version
 - `lint` checks Tython source with the semantic checker.
 - `format` rewrites Tython source to the repo formatter style.
 - `run` executes a `.ty` entry under project context.
+- `python sync` creates/syncs the project-local Python venv used for `pyimport`.
 - `repl` starts an interactive REPL using the same parser + semantic checks.
 - `transpile` lowers a `.ty` file to Python and writes a `.py`.
 - `version` prints CLI version.

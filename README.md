@@ -58,6 +58,8 @@ tython init # creates a tython project
 tython add --py matplotlib # adds the python package for importing
 ```
 
+Checkout the test project here: https://github.com/younissk/tython-OLS-test-project
+
 ## TODO
 
 ### Docs

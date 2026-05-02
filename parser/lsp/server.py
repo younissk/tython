@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from parser import parse_custom
+from parser.custom_frontend import parse_custom_source as parse_custom
 from parser.custom_frontend import FILE_IMPORT_SENTINEL, NATIVE_IMPORT_SENTINEL
 from parser.diagnostics import (
     diagnostic_from_exception,
@@ -18,7 +18,7 @@ from parser.diagnostics import (
     make_diagnostic,
 )
 from parser.formatter import format_source
-from parser.semantics import analyze_semantics
+from parser.semantics import analyze_semantics, check_semantics
 from parser.semantics.models import SemanticAnalysis, SemanticSymbol
 
 
@@ -237,8 +237,12 @@ class TythonLspServer:
     def _reparse_and_collect(self, uri: str) -> None:
         doc = self.documents[uri]
         try:
-            doc.last_parse = parse_custom(doc.text)
-            doc.last_analysis = analyze_semantics(doc.last_parse)
+            frontend = parse_custom(doc.text)
+            doc.last_parse = frontend.tree
+            check_semantics(doc.last_parse, project_root=None, source_path=doc.path)
+            doc.last_analysis = analyze_semantics(
+                doc.last_parse, project_root=None, source_path=doc.path
+            )
             doc.last_diagnostics = []
             self.logger.info(f"parse success {uri}")
         except SyntaxError as exc:
@@ -541,8 +545,12 @@ class TythonLspServer:
 
     def _analyze_document(self, doc: DocumentState) -> None:
         try:
-            doc.last_parse = parse_custom(doc.text)
-            doc.last_analysis = analyze_semantics(doc.last_parse)
+            frontend = parse_custom(doc.text)
+            doc.last_parse = frontend.tree
+            check_semantics(doc.last_parse, project_root=None, source_path=doc.path)
+            doc.last_analysis = analyze_semantics(
+                doc.last_parse, project_root=None, source_path=doc.path
+            )
             doc.last_diagnostics = []
         except Exception:
             doc.last_parse = None

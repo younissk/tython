@@ -1,0 +1,5 @@
+import "./util.ty" as util
+
+var value = util.answer()
+print(value)
+

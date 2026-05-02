@@ -183,3 +183,61 @@ def test_pyimport_stub_influences_typechecking_in_lint(tmp_path: Path) -> None:
     )
     assert completed.returncode == 1
     assert "E2016" in completed.stderr
+
+
+def test_file_import_exposes_class_member_types_across_modules(tmp_path: Path) -> None:
+    project_root = tmp_path / "my_app"
+    (project_root / "src").mkdir(parents=True)
+    (project_root / "src" / "ols.ty").write_text(
+        """
+record Model {
+    fit: (X: Matrix,y: Matrix) -> Matrix
+}
+
+class OLS is Model {
+    pub var beta: Matrix
+
+    pub func fit(X: Matrix,y: Matrix) -> Matrix {
+        this.beta = (X.transpose()@X).inverse()@X.transpose()@y
+        return this.beta
+    }
+}
+""".strip()
+        + "\n"
+    )
+    (project_root / "src" / "main.ty").write_text(
+        """
+import "./ols.ty" as OLS
+
+const X = Matrix([[1],[4],[7]])
+const Y = Matrix([[3],[6],[8]])
+
+const MODEL = OLS.OLS()
+MODEL.fit(X: X, y: Y)
+
+var yhat = X @ MODEL.beta
+print(yhat)
+""".strip()
+        + "\n"
+    )
+    (project_root / "project.toml").write_text(
+        """
+[project]
+name = "my_app"
+version = "0.1.0"
+entry = "src/main.ty"
+
+[python]
+dependencies = []
+""".strip()
+        + "\n"
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(MAIN_PY), "lint"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr

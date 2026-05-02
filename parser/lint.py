@@ -35,7 +35,7 @@ def lint_file_in_project(path: Path, *, project_root: Path) -> list[str]:
         if source.startswith("\ufeff"):
             source = source.removeprefix("\ufeff")
         tree = parse_custom_source(source).tree
-        check_semantics(tree, project_root=project_root)
+        check_semantics(tree, project_root=project_root, source_path=path)
         return []
     except SyntaxError as exc:
         diagnostic = diagnostic_from_exception(

@@ -222,6 +222,94 @@ def rewrite_lowercase_literals(source: str) -> str:
     return tokenize.untokenize(out_tokens)
 
 
+def rewrite_tokens_combined(source: str) -> str:
+    """Single tokenize pass that combines:
+
+    - `this` -> `self`
+    - lowercase literals: true/false/none -> True/False/None
+    - named call args: `f(x: 1)` -> `f(x=1)` (only in call parens)
+    """
+    stream = io.StringIO(source)
+    out_tokens: list[tokenize.TokenInfo] = []
+
+    paren_stack: list[str] = []
+    square_depth = 0
+    brace_depth = 0
+
+    last_sig: tokenize.TokenInfo | None = None
+    second_last_sig: tokenize.TokenInfo | None = None
+
+    for tok in tokenize.generate_tokens(stream.readline):
+        token_type = tok.type
+        token_str = tok.string
+
+        if token_type == token.OP and token_str == "(":
+            kind = "other"
+            if (
+                last_sig is not None
+                and second_last_sig is not None
+                and second_last_sig.type == token.NAME
+                and second_last_sig.string == "def"
+                and last_sig.type == token.NAME
+            ):
+                kind = "def_params"
+            elif last_sig is not None and is_call_paren_after(last_sig):
+                kind = "call"
+            paren_stack.append(kind)
+
+        elif token_type == token.OP and token_str == ")":
+            if paren_stack:
+                paren_stack.pop()
+
+        elif token_type == token.OP and token_str == "[":
+            square_depth += 1
+        elif token_type == token.OP and token_str == "]":
+            square_depth = max(0, square_depth - 1)
+        elif token_type == token.OP and token_str == "{":
+            brace_depth += 1
+        elif token_type == token.OP and token_str == "}":
+            brace_depth = max(0, brace_depth - 1)
+
+        if token_type == token.NAME:
+            if token_str == "this":
+                tok = tokenize.TokenInfo(tok.type, "self", tok.start, tok.end, tok.line)
+                token_str = tok.string
+            elif token_str == "true":
+                tok = tokenize.TokenInfo(tok.type, "True", tok.start, tok.end, tok.line)
+                token_str = tok.string
+            elif token_str == "false":
+                tok = tokenize.TokenInfo(tok.type, "False", tok.start, tok.end, tok.line)
+                token_str = tok.string
+            elif token_str == "none":
+                tok = tokenize.TokenInfo(tok.type, "None", tok.start, tok.end, tok.line)
+                token_str = tok.string
+
+        if (
+            token_type == token.OP
+            and token_str == ":"
+            and paren_stack
+            and paren_stack[-1] == "call"
+            and square_depth == 0
+            and brace_depth == 0
+        ):
+            tok = tokenize.TokenInfo(tok.type, "=", tok.start, tok.end, tok.line)
+
+        out_tokens.append(tok)
+
+        if token_type not in {
+            token.INDENT,
+            token.DEDENT,
+            token.NEWLINE,
+            token.NL,
+            token.ENDMARKER,
+            token.COMMENT,
+        }:
+            second_last_sig = last_sig
+            last_sig = tok
+
+    return tokenize.untokenize(out_tokens)
+
+
 def rewrite_try_propagation(source: str) -> str:
     lines = source.splitlines()
     out_lines: list[str] = []

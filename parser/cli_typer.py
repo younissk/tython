@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import shutil
 import subprocess
 from enum import Enum
@@ -24,7 +25,7 @@ from .project import (
 )
 from .formatter import format_file, format_source
 from .lint import discover_lint_targets, lint_file, lint_file_in_project
-from .project_build import build_project, lock_project, run_generated_target
+from .project_build import BuildReport, build_project, lock_project, run_generated_target
 
 
 class ExecMode(str, Enum):
@@ -464,9 +465,16 @@ def lock() -> None:
 
 
 @app.command(help="Build project into .tython/build Python package.")
-def build() -> None:
+def build(
+    json_report: bool = typer.Option(False, "--json", help="Emit JSON build report.")
+) -> None:
     project_root = find_project_root(Path.cwd())
-    build_root = build_project(project_root)
+    report = BuildReport()
+    build_root = build_project(project_root, report=report)
+    if json_report:
+        payload: dict[str, object] = {"build_root": str(build_root), **report.as_dict()}
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
     _console.print(f"[green]Built[/green] {build_root}")
 
 

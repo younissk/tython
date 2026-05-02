@@ -8,12 +8,19 @@ from .constants import BUILTIN_NAMES
 from .models import ClassDecl, FunctionSignature, RecordDecl, SemanticAnalysis, Symbol
 
 
-def check_semantics(tree: ast.AST, *, project_root: Path | None = None) -> None:
-    SemanticChecker(project_root=project_root).check(tree)
+def check_semantics(
+    tree: ast.AST,
+    *,
+    project_root: Path | None = None,
+    source_path: Path | None = None,
+) -> None:
+    SemanticChecker(project_root=project_root, source_path=source_path).check(tree)
 
 
-def analyze_semantics(tree: ast.AST, *, project_root: Path | None = None) -> SemanticAnalysis:
-    checker = SemanticChecker(project_root=project_root)
+def analyze_semantics(
+    tree: ast.AST, *, project_root: Path | None = None, source_path: Path | None = None
+) -> SemanticAnalysis:
+    checker = SemanticChecker(project_root=project_root, source_path=source_path)
     checker.check(tree)
     return checker.analysis
 
@@ -52,8 +59,9 @@ def check_semantics_with_prelude(
     predeclared: dict[str, tuple[str, str | None, bool]] | PreludeState,
     *,
     project_root: Path | None = None,
+    source_path: Path | None = None,
 ) -> PreludeState:
-    checker = SemanticChecker(project_root=project_root)
+    checker = SemanticChecker(project_root=project_root, source_path=source_path)
     state = PreludeState.coerce(predeclared)
     module_scope = checker._scopes[0]
     for name, (kind, type_name, initialized) in state.items():

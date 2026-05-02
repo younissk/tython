@@ -1,0 +1,29 @@
+record MyError {
+    message: str
+}
+
+func might_fail(flag: bool) -> int throws MyError {
+    if flag {
+        raise MyError {
+            message: "bad"
+        }
+    }
+    return 1
+}
+
+class Greeter {
+    var base: str = "hi"
+
+    func greet(name: str) -> str {
+        const suffix = if true: "!" else "?"
+        return this.base + " " + name + suffix
+    }
+}
+
+func main() -> int throws MyError {
+    const g = Greeter()
+    print(g.greet(name: "bob"))
+    const val = try might_fail(false)
+    return val
+}
+

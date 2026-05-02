@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from parser import lower, parse_custom
+from parser.custom_frontend.api import parse_custom_source_profiled
+from parser.semantics import check_semantics
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -78,7 +80,7 @@ def run_validation(root: Path) -> list[CorpusCase]:
     return cases
 
 
-def run_benchmark(root: Path, *, repeat: int = 5) -> dict[str, object]:
+def run_benchmark(root: Path, *, repeat: int = 5, phases: bool = False) -> dict[str, object]:
     cases = discover_perf_cases(root)
     timings: list[dict[str, object]] = []
     start_total = time.perf_counter()
@@ -90,27 +92,79 @@ def run_benchmark(root: Path, *, repeat: int = 5) -> dict[str, object]:
             else None
         )
         start = time.perf_counter()
+
+        phase_totals_ms: dict[str, float] = {}
         for _ in range(repeat):
-            tree = parse_custom(source)
+            if not phases:
+                tree = parse_custom(source)
+                if expected is not None:
+                    lowered = lower(tree)
+                    if ast.dump(lowered, include_attributes=False) != ast.dump(
+                        expected, include_attributes=False
+                    ):
+                        raise AssertionError(
+                            f"lowered output mismatch for {case.source_path}"
+                        )
+                    compile(lowered, str(case.source_path), "exec")
+                continue
+
+            frontend, rewrite_timings = parse_custom_source_profiled(source)
+            for key, value in rewrite_timings.items():
+                phase_totals_ms[key] = phase_totals_ms.get(key, 0.0) + float(value)
+
+            t0 = time.perf_counter_ns()
+            check_semantics(frontend.tree)
+            phase_totals_ms["semantics_ms"] = phase_totals_ms.get("semantics_ms", 0.0) + (
+                time.perf_counter_ns() - t0
+            ) / 1e6
+
+            t0 = time.perf_counter_ns()
+            lowered = lower(frontend.tree)
+            phase_totals_ms["lower_ms"] = phase_totals_ms.get("lower_ms", 0.0) + (
+                time.perf_counter_ns() - t0
+            ) / 1e6
+
             if expected is not None:
-                lowered = lower(tree)
                 if ast.dump(lowered, include_attributes=False) != ast.dump(
                     expected, include_attributes=False
                 ):
                     raise AssertionError(
                         f"lowered output mismatch for {case.source_path}"
                     )
-                compile(lowered, str(case.source_path), "exec")
+
+            t0 = time.perf_counter_ns()
+            ast.unparse(lowered)
+            phase_totals_ms["unparse_ms"] = phase_totals_ms.get("unparse_ms", 0.0) + (
+                time.perf_counter_ns() - t0
+            ) / 1e6
+
+            t0 = time.perf_counter_ns()
+            compile(lowered, str(case.source_path), "exec")
+            phase_totals_ms["compile_ms"] = phase_totals_ms.get("compile_ms", 0.0) + (
+                time.perf_counter_ns() - t0
+            ) / 1e6
+
         elapsed = time.perf_counter() - start
         timings.append(
             {
                 "path": str(case.source_path.relative_to(root)),
                 "seconds": round(elapsed / repeat, 6),
+                **(
+                    {
+                        "phases_ms": {
+                            key: round(value / repeat, 3)
+                            for key, value in sorted(phase_totals_ms.items())
+                        }
+                    }
+                    if phases
+                    else {}
+                ),
             }
         )
     return {
         "root": str(root),
         "repeat": repeat,
+        "phases": phases,
         "case_count": len(cases),
         "seconds_total": round(time.perf_counter() - start_total, 6),
         "timings": timings,
@@ -132,6 +186,11 @@ def main() -> None:
         "bench", help="Run repeatable timing over perf fixtures."
     )
     bench_command.add_argument("--repeat", type=int, default=5)
+    bench_command.add_argument(
+        "--phases",
+        action="store_true",
+        help="Include per-phase timing breakdown (rewrite/parse/semantics/lower/unparse/compile).",
+    )
     bench_command.add_argument(
         "--output", type=Path, help="Write JSON report to this path."
     )
@@ -157,7 +216,7 @@ def main() -> None:
             )
         return
 
-    report = run_benchmark(args.root, repeat=args.repeat)
+    report = run_benchmark(args.root, repeat=args.repeat, phases=args.phases)
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)

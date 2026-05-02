@@ -19,6 +19,7 @@ from ..custom_frontend import (
     SETUP_METHOD_NAME,
     THROWS_DECORATOR_SENTINEL,
     TRY_PROPAGATE_SENTINEL,
+    parse_custom_source,
 )
 
 
@@ -69,9 +70,21 @@ class TryContext:
 
 
 class SemanticChecker:
-    def __init__(self, *, project_root: Path | None = None) -> None:
+    def __init__(
+        self, *, project_root: Path | None = None, source_path: Path | None = None
+    ) -> None:
         self._project_root = project_root
+        self._source_path = source_path
         self._pyimport_stubs: PyImportStubIndex | None = None
+        self._file_module_cache: dict[
+            Path,
+            tuple[
+                dict[str, tuple[str, str | None, bool]],
+                dict[str, FunctionSignature],
+                dict[str, RecordDecl],
+                dict[str, ClassDecl],
+            ],
+        ] = {}
         self._scopes: list[Scope] = [Scope(kind="module", function_id=None, symbols={})]
         self._next_function_id = 1
         self._function_signatures: dict[str, FunctionSignature] = {}
@@ -155,7 +168,17 @@ class SemanticChecker:
                         "Use `./` or `../` path prefix.",
                     )
                 )
-            self._declare_name(alias, "const", None, stmt.lineno, initialized=True)
+            self._declare_name(
+                alias,
+                "const",
+                "Module",
+                stmt.lineno,
+                initialized=True,
+                detail=f"import {path}",
+            )
+            resolved = self._resolve_file_import_path(path)
+            if resolved is not None:
+                self._import_file_module(alias, resolved)
             return
 
         if self._is_pyimport_stmt(stmt):
@@ -1918,6 +1941,16 @@ class SemanticChecker:
         if isinstance(expr, ast.Attribute):
             if isinstance(expr.value, ast.Name):
                 symbol = self._lookup_symbol(expr.value.id)
+                if symbol is not None and symbol.type_name == "Module":
+                    member = self._lookup_symbol(f"{expr.value.id}.{expr.attr}")
+                    if member is not None:
+                        self._record_reference(
+                            name=expr.attr,
+                            qualified_name=member.qualified_name,
+                            location=self._attribute_location(expr),
+                            kind="read",
+                        )
+                        return member.type_name
                 if symbol is not None and symbol.py_module is not None:
                     stubs = self._stub_index()
                     if stubs is not None:
@@ -2423,6 +2456,15 @@ class SemanticChecker:
             owner_type = self._check_expression(expr.func.value)
             if isinstance(expr.func.value, ast.Name):
                 symbol = self._lookup_symbol(expr.func.value.id)
+                if symbol is not None and symbol.type_name == "Module":
+                    member = self._lookup_symbol(
+                        f"{expr.func.value.id}.{expr.func.attr}"
+                    )
+                    if member is not None and member.type_name is not None:
+                        class_decl = self._class_decls.get(member.type_name)
+                        if class_decl is not None:
+                            result = self._check_class_constructor_call(expr, class_decl)
+                            return result, set()
                 if symbol is not None and symbol.py_module is not None:
                     stubs = self._stub_index()
                     if stubs is not None:
@@ -3146,15 +3188,27 @@ class SemanticChecker:
                 )
             )
 
-        if decl.kind == "const" and not CONST_NAME_RE.fullmatch(decl.name):
-            raise SyntaxError(
-                err(
-                    "E2013",
-                    lineno,
-                    f"invalid const name '{decl.name}'",
-                    "Use UPPER_SNAKE_CASE for const bindings.",
-                )
-            )
+        if decl.kind == "const":
+            if self._scopes[-1].kind == "module":
+                if not CONST_NAME_RE.fullmatch(decl.name):
+                    raise SyntaxError(
+                        err(
+                            "E2013",
+                            lineno,
+                            f"invalid const name '{decl.name}'",
+                            "Use UPPER_SNAKE_CASE for module const bindings.",
+                        )
+                    )
+            else:
+                if not VAR_NAME_RE.fullmatch(decl.name):
+                    raise SyntaxError(
+                        err(
+                            "E2013",
+                            lineno,
+                            f"invalid const name '{decl.name}'",
+                            "Use snake_case for local const bindings.",
+                        )
+                    )
         if decl.kind == "var" and not VAR_NAME_RE.fullmatch(decl.name):
             raise SyntaxError(
                 err(
@@ -4088,6 +4142,70 @@ class SemanticChecker:
         if declared in {"int", "float"} and inferred in {"int", "float"}:
             return True
         return False
+
+    def _resolve_file_import_path(self, raw: str) -> Path | None:
+        if self._source_path is None:
+            return None
+        return (self._source_path.parent / raw).resolve()
+
+    def _import_file_module(self, alias: str, path: Path) -> None:
+        if not path.exists() or path.suffix != ".ty":
+            return
+
+        cached = self._file_module_cache.get(path)
+        if cached is None:
+            try:
+                source = path.read_text()
+                if source.startswith("\ufeff"):
+                    source = source.removeprefix("\ufeff")
+                tree = parse_custom_source(source).tree
+
+                # Local import to avoid import-cycle: api -> checker.
+                from .api import PreludeState, check_semantics_with_prelude
+
+                state = check_semantics_with_prelude(
+                    tree,
+                    PreludeState(),
+                    project_root=self._project_root,
+                    source_path=path,
+                )
+                cached = (
+                    dict(state),
+                    dict(state.function_signatures),
+                    dict(state.record_decls),
+                    dict(state.class_decls),
+                )
+            except SyntaxError:
+                return
+            self._file_module_cache[path] = cached
+
+        symbols, fn_sigs, record_decls, class_decls = cached
+
+        # Merge type declarations so downstream code can use the imported types.
+        for name, decl in record_decls.items():
+            self._record_decls.setdefault(name, decl)
+        for name, decl in class_decls.items():
+            self._class_decls.setdefault(name, decl)
+        for name, sig in fn_sigs.items():
+            self._function_signatures.setdefault(name, sig)
+
+        # Expose imported module names as alias.<name> in the current module scope.
+        module_scope = self._scopes[0]
+        for name, (kind, type_name, initialized) in symbols.items():
+            qname = f"{alias}.{name}"
+            if qname in module_scope.symbols:
+                continue
+            module_scope.symbols[qname] = Symbol(
+                name=qname,
+                qualified_name=qname,
+                kind=kind,
+                type_name=type_name,
+                py_module=None,
+                lineno=0,
+                col_offset=0,
+                function_id=None,
+                initialized=initialized,
+            )
 
     def _stub_index(self) -> PyImportStubIndex | None:
         if self._project_root is None:

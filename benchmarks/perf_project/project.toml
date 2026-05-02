@@ -1,0 +1,8 @@
+[project]
+name = "perf_project"
+version = "0.1.0"
+entry = "src/main.ty"
+
+[python]
+dependencies = []
+

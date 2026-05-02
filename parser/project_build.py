@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import json
+import os
+import re
 import subprocess
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .core import lower
@@ -33,6 +38,22 @@ class SourceUnit:
     source_root: Path
 
 
+@dataclass
+class BuildReport:
+    compiled: int = 0
+    cache_hits: int = 0
+    cache_misses: int = 0
+    stale_outputs_removed: int = 0
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "compiled": self.compiled,
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "stale_outputs_removed": self.stale_outputs_removed,
+        }
+
+
 def lock_project(project_root: Path):
     manifest = load_manifest(project_root)
     lock = resolve_lock(manifest)
@@ -42,6 +63,8 @@ def lock_project(project_root: Path):
 
 def build_project(
     project_root: Path,
+    *,
+    report: BuildReport | None = None,
 ) -> Path:
     manifest = load_manifest(project_root)
     from .project import load_lock
@@ -50,21 +73,27 @@ def build_project(
     if lock is None:
         lock = lock_project(project_root)
 
-    _, build_root = ensure_cache_dirs(project_root)
-    _clear_build_root(build_root)
+    cache_root, build_root = ensure_cache_dirs(project_root)
+    build_root.mkdir(parents=True, exist_ok=True)
+
+    build_report = report if report is not None else BuildReport()
 
     units = _collect_units(project_root, manifest)
     module_index = {unit.source_path.resolve(): unit.module_name for unit in units}
+    module_graph_hash = _module_graph_hash(project_root, units)
+    lock_hash = _build_lock_hash(project_root)
+    python_version = _python_version()
+    tython_version = _tython_version()
+
+    expected_outputs: set[Path] = set()
 
     for unit in units:
         source = unit.source_path.read_text()
         source = _normalize_source(source)
-        tree = parse_custom_source(source).tree
-        check_semantics(tree, project_root=project_root)
 
         native_import_map: dict[str, str] = {}
         file_import_map: dict[str, str] = {}
-        for kind, raw, _alias in _collect_imports(tree):
+        for kind, raw, _alias in _scan_imports_from_source(source):
             if kind == "native":
                 native_import_map[raw] = _resolve_native_import(
                     raw=raw,
@@ -80,16 +109,50 @@ def build_project(
                     )
                 file_import_map[raw] = module
 
+        output_path = _module_to_file(build_root, unit.module_name)
+        expected_outputs.add(output_path.resolve())
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        _ensure_package_inits(output_path.parent, build_root / "src")
+
+        import_maps_hash = _import_maps_hash(
+            native_import_map=native_import_map,
+            file_import_map=file_import_map,
+        )
+        cache_key = _artifact_cache_key(
+            source_bytes=source.encode("utf-8"),
+            tython_version=tython_version,
+            python_version=python_version,
+            lock_hash=lock_hash,
+            module_graph_hash=module_graph_hash,
+            import_maps_hash=import_maps_hash,
+        )
+        artifact = _artifact_path(cache_root, cache_key)
+        if artifact.exists():
+            build_report.cache_hits += 1
+            _atomic_write_text(output_path, artifact.read_text(encoding="utf-8"))
+            continue
+
+        build_report.cache_misses += 1
+        build_report.compiled += 1
+
+        tree = parse_custom_source(source).tree
+        check_semantics(tree, project_root=project_root, source_path=unit.source_path)
         lowered = lower(
             tree,
             native_import_map=native_import_map,
             file_import_map=file_import_map,
         )
         rendered = ast.unparse(lowered) + "\n"
-        output_path = _module_to_file(build_root, unit.module_name)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(rendered)
-        _ensure_package_inits(output_path.parent, build_root / "src")
+
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write_text(artifact, rendered)
+        _atomic_write_text(output_path, rendered)
+
+    build_report.stale_outputs_removed += _remove_stale_outputs(
+        build_root=build_root,
+        package_name=manifest.name,
+        expected_outputs=expected_outputs,
+    )
 
     _copy_runtime_stdlib(build_root)
     _write_generated_pyproject(project_root, manifest, build_root)
@@ -322,11 +385,24 @@ def _write_generated_pyproject(
     if not (build_root / LOCK_FILE).exists() and (project_root / LOCK_FILE).exists():
         shutil.copyfile(project_root / LOCK_FILE, build_root / LOCK_FILE)
 
+def _remove_stale_outputs(
+    *,
+    build_root: Path,
+    package_name: str,
+    expected_outputs: set[Path],
+) -> int:
+    removed = 0
+    pkg_root = (build_root / "src" / package_name).resolve()
+    if not pkg_root.exists():
+        return 0
 
-def _clear_build_root(build_root: Path) -> None:
-    if build_root.exists():
-        shutil.rmtree(build_root)
-    build_root.mkdir(parents=True, exist_ok=True)
+    for path in pkg_root.rglob("*.py"):
+        if path.name == "__init__.py":
+            continue
+        if path.resolve() not in expected_outputs:
+            path.unlink(missing_ok=True)
+            removed += 1
+    return removed
 
 
 def _copy_runtime_stdlib(build_root: Path) -> None:
@@ -404,3 +480,130 @@ def _normalize_source(source: str) -> str:
     if source.startswith("\ufeff"):
         return source.removeprefix("\ufeff")
     return source
+
+
+_CACHE_SCHEMA_VERSION = "tython-cache-v1"
+
+
+def _python_version() -> str:
+    info = sys.version_info
+    return f"{info.major}.{info.minor}.{info.micro}"
+
+
+def _tython_version() -> str:
+    try:
+        return version("tython")
+    except PackageNotFoundError:
+        return "0.1.0"
+
+
+def _build_lock_hash(project_root: Path) -> str:
+    lock_path = project_root / LOCK_FILE
+    if lock_path.exists():
+        blob = lock_path.read_bytes()
+    else:
+        blob = (project_root / "project.toml").read_bytes()
+    return hashlib.sha256(blob).hexdigest()
+
+
+def _module_graph_hash(project_root: Path, units: list[SourceUnit]) -> str:
+    src_root = (project_root / "src").resolve()
+    rels = sorted(
+        unit.source_path.resolve().relative_to(src_root).as_posix() for unit in units
+    )
+    return hashlib.sha256("\n".join(rels).encode("utf-8")).hexdigest()
+
+
+def _import_maps_hash(*, native_import_map: dict[str, str], file_import_map: dict[str, str]) -> str:
+    payload = json.dumps(
+        {"native": native_import_map, "file": file_import_map},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _artifact_cache_key(
+    *,
+    source_bytes: bytes,
+    tython_version: str,
+    python_version: str,
+    lock_hash: str,
+    module_graph_hash: str,
+    import_maps_hash: str,
+) -> str:
+    h = hashlib.sha256()
+    h.update(b"schema=" + _CACHE_SCHEMA_VERSION.encode("utf-8") + b"\0")
+    h.update(b"tython=" + tython_version.encode("utf-8") + b"\0")
+    h.update(b"python=" + python_version.encode("utf-8") + b"\0")
+    h.update(b"lock=" + lock_hash.encode("utf-8") + b"\0")
+    h.update(b"graph=" + module_graph_hash.encode("utf-8") + b"\0")
+    h.update(b"imports=" + import_maps_hash.encode("utf-8") + b"\0")
+    h.update(b"source\0")
+    h.update(source_bytes)
+    return h.hexdigest()
+
+
+def _artifact_path(cache_root: Path, cache_key: str) -> Path:
+    return cache_root / "artifacts" / "py" / cache_key[:2] / f"{cache_key}.py"
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        delete=False,
+        dir=str(path.parent),
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    ) as tmp:
+        tmp.write(text)
+        tmp.flush()
+        os.fsync(tmp.fileno())
+        tmp_path = Path(tmp.name)
+    os.replace(tmp_path, path)
+
+
+_PYIMPORT_SCAN_RE = re.compile(
+    r"^(?P<indent>[ \t]*)pyimport[ \t]+(?P<module>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:[ \t]+as[ \t]+(?P<alias>[A-Za-z_][A-Za-z0-9_]*))?[ \t]*$"
+)
+_FILE_IMPORT_SCAN_RE = re.compile(
+    r"^(?P<indent>[ \t]*)import[ \t]+(?P<quote>['\"])(?P<path>.+?)(?P=quote)[ \t]+as[ \t]+(?P<alias>[A-Za-z_][A-Za-z0-9_]*)[ \t]*$"
+)
+_NATIVE_IMPORT_SCAN_RE = re.compile(
+    r"^(?P<indent>[ \t]*)import[ \t]+(?P<target>[A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)+)[ \t]+as[ \t]+(?P<alias>[A-Za-z_][A-Za-z0-9_]*)[ \t]*$"
+)
+
+
+def _scan_imports_from_source(source: str) -> list[tuple[str, str, str | None]]:
+    imports: list[tuple[str, str, str | None]] = []
+    for line in source.splitlines():
+        code, _sep, _comment = line.partition("#")
+        stripped = code.strip()
+        if stripped == "":
+            continue
+
+        py_match = _PYIMPORT_SCAN_RE.match(code)
+        if py_match is not None:
+            module = py_match.group("module")
+            alias = py_match.group("alias")
+            imports.append(("pyimport", module, alias))
+            continue
+
+        file_match = _FILE_IMPORT_SCAN_RE.match(code)
+        if file_match is not None:
+            path = file_match.group("path")
+            alias = file_match.group("alias")
+            imports.append(("file", path, alias))
+            continue
+
+        native_match = _NATIVE_IMPORT_SCAN_RE.match(code)
+        if native_match is not None:
+            target = native_match.group("target")
+            alias = native_match.group("alias")
+            imports.append(("native", target, alias))
+            continue
+
+    return imports

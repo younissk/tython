@@ -28,7 +28,7 @@ class Fish is Animal{
   init const NAME: str
   
   pub func hello(name: str) -> none {
-    print("Hello {name}, my name is {this.NAME}")
+    print(f"Hello {name}, my name is {this.NAME}")
   }
 
 }
@@ -38,6 +38,25 @@ FISH.hello("jerry")
 ```
 
 `init` variables in a class just bypass this syntax: `self.name = name` and also `this` is arguably better than passing `self` in every method. Methods by default are private, unless you add `pub` infront of it. Everything is statically typed and also I added consts and vars for mutibility stuff.
+
+You can now somewhat "import" python packages. However I need to test this better:
+
+```tython
+pyimport matplotlib.pyplot as plt
+
+var x_ = range(10)
+var y_ = [1,2,3,4,5,6,7,8,9,10]
+
+plt.plot(x_, y_)
+plt.savefig("plot.png")
+```
+
+Before doing so, you need to however add it using the tython "package manager" (it just uses uv under the hood):
+
+```shell
+tython init # creates a tython project
+tython add --py matplotlib # adds the python package for importing
+```
 
 ## TODO
 

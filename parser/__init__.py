@@ -1,3 +1,9 @@
-from .core import lower, parse, parse_custom, parse_file
+from .core import lower, parse, parse_custom, parse_custom_with_analysis, parse_file
 
-__all__ = ["parse", "parse_custom", "parse_file", "lower"]
+__all__ = [
+    "lower",
+    "parse",
+    "parse_custom",
+    "parse_custom_with_analysis",
+    "parse_file",
+]

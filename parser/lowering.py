@@ -1,5 +1,6 @@
 import ast
 import hashlib
+from typing import TYPE_CHECKING
 
 from .custom_frontend import (
     BINDING_SENTINEL,
@@ -18,18 +19,30 @@ from .custom_frontend import (
     TRY_PROPAGATE_SENTINEL,
 )
 
+if TYPE_CHECKING:
+    from .semantics.models import TypeContext
+
 
 def lower(
     ir: ast.AST,
     *,
     native_import_map: dict[str, str] | None = None,
     file_import_map: dict[str, str] | None = None,
+    type_context: "TypeContext | None" = None,
 ) -> ast.AST:
+    """Lower the tython custom IR into a plain Python AST.
+
+    ``type_context`` is the post-semantic-check view of the program. It is
+    optional for backwards compatibility (REPL, ad-hoc tests, etc.) but the
+    production build pipeline threads it through so type-driven optimization
+    passes (__slots__ emission, devirtualization, etc.) can consume it.
+    """
     if not isinstance(ir, ast.AST):
         raise TypeError(f"expected ast.AST, got {type(ir).__name__}")
     lowered = _LowerCustomIR(
         native_import_map=native_import_map or {},
         file_import_map=file_import_map or {},
+        type_context=type_context,
     ).visit(ir)
     ast.fix_missing_locations(lowered)
     return lowered
@@ -37,7 +50,11 @@ def lower(
 
 class _LowerCustomIR(ast.NodeTransformer):
     def __init__(
-        self, *, native_import_map: dict[str, str], file_import_map: dict[str, str]
+        self,
+        *,
+        native_import_map: dict[str, str],
+        file_import_map: dict[str, str],
+        type_context: "TypeContext | None" = None,
     ) -> None:
         self._needs_enum_import = False
         self._needs_dataclass_import = False
@@ -47,6 +64,11 @@ class _LowerCustomIR(ast.NodeTransformer):
         self._thrown_record_types: set[str] = set()
         self._native_import_map = native_import_map
         self._file_import_map = file_import_map
+        # Type info from semantic analysis. None when the lowerer is invoked
+        # without prior semantic analysis (e.g. ad-hoc REPL/test paths). All
+        # consumers MUST treat None as "no type info available" and fall back
+        # to safe behaviour.
+        self._type_context = type_context
 
     def visit_Module(self, node: ast.Module) -> ast.Module:
         self.generic_visit(node)

@@ -51,6 +51,7 @@ from .models import (
     Scope,
     Symbol,
     SourceRange,
+    TypeContext,
 )
 from .type_utils import (
     annotation_to_custom_type,
@@ -120,6 +121,21 @@ class SemanticChecker:
         self._analysis = SemanticAnalysis()
         self._matrix_expr_info = {}
         self._check_statements(tree.body)
+        self._finalize_type_context()
+
+    def _finalize_type_context(self) -> None:
+        """Snapshot type info into analysis.type_context so the lowerer
+        and downstream optimization passes can consume it without reaching
+        into checker private state.
+        """
+        module_scope = self._scopes[0] if self._scopes else None
+        module_symbols = dict(module_scope.symbols) if module_scope is not None else {}
+        self._analysis.type_context = TypeContext(
+            class_decls=dict(self._class_decls),
+            record_decls=dict(self._record_decls),
+            function_signatures=dict(self._function_signatures),
+            module_symbols=module_symbols,
+        )
 
     @property
     def analysis(self) -> SemanticAnalysis:

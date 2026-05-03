@@ -28,7 +28,7 @@ from .project import (
     resolve_lock,
     write_lock,
 )
-from .semantics import check_semantics
+from .semantics import analyze_semantics
 
 
 @dataclass(frozen=True)
@@ -136,11 +136,14 @@ def build_project(
         build_report.compiled += 1
 
         tree = parse_custom_source(source).tree
-        check_semantics(tree, project_root=project_root, source_path=unit.source_path)
+        analysis = analyze_semantics(
+            tree, project_root=project_root, source_path=unit.source_path
+        )
         lowered = lower(
             tree,
             native_import_map=native_import_map,
             file_import_map=file_import_map,
+            type_context=analysis.type_context,
         )
         rendered = ast.unparse(lowered) + "\n"
 

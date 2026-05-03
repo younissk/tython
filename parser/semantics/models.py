@@ -123,6 +123,24 @@ class SemanticSymbol:
 
 
 @dataclass
+class TypeContext:
+    """Type information needed by the lowering / optimization passes.
+
+    This bundles the post-check-time view of the program that downstream
+    consumers (the lowerer, future optimization passes) need to make
+    type-driven decisions: emitting __slots__, devirtualizing method calls,
+    selecting specialized numeric ops, deciding numba/mypyc eligibility, etc.
+
+    Treat as read-only after SemanticChecker.check() returns.
+    """
+
+    class_decls: dict[str, "ClassDecl"] = field(default_factory=dict)
+    record_decls: dict[str, "RecordDecl"] = field(default_factory=dict)
+    function_signatures: dict[str, "FunctionSignature"] = field(default_factory=dict)
+    module_symbols: dict[str, "Symbol"] = field(default_factory=dict)
+
+
+@dataclass
 class SemanticAnalysis:
     symbols_by_name: dict[str, SemanticSymbol] = field(default_factory=dict)
     symbols_by_qualified_name: dict[str, SemanticSymbol] = field(default_factory=dict)
@@ -132,6 +150,7 @@ class SemanticAnalysis:
     )
     top_level_symbols: list[SemanticSymbol] = field(default_factory=list)
     diagnostics: list[object] = field(default_factory=list)
+    type_context: TypeContext = field(default_factory=lambda: TypeContext())
 
 
 @dataclass

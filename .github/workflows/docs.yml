@@ -41,7 +41,7 @@ jobs:
           grep -nE 'mkdocs-material|md-header|data-md-component="search"' site/index.html
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 

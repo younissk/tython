@@ -1,6 +1,6 @@
 mkdocs>=1.6.1
 mkdocs-material>=9.7.6
-numpy>=1.26.4
+numpy>=2.4.5
 pegen>=0.3.0
 pytest>=9.0.3
 rich>=14.0.0
